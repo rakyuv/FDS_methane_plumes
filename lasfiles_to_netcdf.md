@@ -55,7 +55,6 @@ You will need to create a JSON pipeline file to define the cropping operation.
       "filename": "cropped_output.laz"
     }
   ]
-}
 ```
 Note: Replace ([xmin, xmax], [ymin, ymax]) with the actual geographic coordinates defining your area of interest.
 

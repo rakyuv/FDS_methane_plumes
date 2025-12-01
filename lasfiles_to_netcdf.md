@@ -76,9 +76,9 @@ You can verify the class layer numbers by opening the `.laz` file in a GIS tool 
 | Class ID | Description |	Example Command |
 | :---: | :--- | :--- |
 | 2 |	Ground |	las2las64 -i cropped_output.laz -o ground.laz -keep_class 2
-| 6 |	Building |	las2las64 -i cropped_output.laz -o building.laz -keep_class 6
+| 6 |	Buildings |	las2las64 -i cropped_output.laz -o buildings.laz -keep_class 6
 | 5 |	Tall Vegetation	|las2las64 -i cropped_output.laz -o vegetation_tall.laz -keep_class 5
-| 2 & 6 |	Ground & Buildings |	las2las64 -i cropped_output.laz -o ground_building.laz -keep_class 2 -keep_class 6
+| 2 & 6 |	Ground & Buildings |	las2las64 -i cropped_output.laz -o ground_and_buildings.laz -keep_class 2 -keep_class 6
 
 ---
 

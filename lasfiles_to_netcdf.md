@@ -74,10 +74,17 @@ You can verify the class layer numbers by opening the `.laz` file in a GIS tool 
 | :---: | :--- | :--- |
 | 2 |	Ground |	las2las64 -i cropped_output.laz -o ground.laz -keep_class 2
 | 6 |	Buildings |	las2las64 -i cropped_output.laz -o buildings.laz -keep_class 6
+| 3 |	Short Vegetation	|las2las64 -i cropped_output.laz -o vegetation_short.laz -keep_class 3
+| 4 |	Medium Vegetation	|las2las64 -i cropped_output.laz -o vegetation_medium.laz -keep_class 4
 | 5 |	Tall Vegetation	|las2las64 -i cropped_output.laz -o vegetation_tall.laz -keep_class 5
 | 2 & 6 |	Ground & Buildings |	las2las64 -i cropped_output.laz -o ground_and_buildings.laz -keep_class 2 -keep_class 6
 
 ---
+To obtain a laz file that contains the ground, buildings, smaller and medium vegetations:
+
+```command-line
+ las2las64 -i cropped_output.laz -o ground_and_buildings.laz -keep_class 2 keep_class 3 -keep_class 4 -keep_class 6  
+```
 
 4. Converting LAZ to TIFF (PDAL)
 

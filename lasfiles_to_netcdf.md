@@ -129,7 +129,8 @@ If a coarser resolution is required, use gdalwarp with the target resolution (-t
 ```command-line
 gdalwarp -tr <x_res> <y_res> -r <resampling_method> <input_file.tif> <output_file.tif>
 ```
-Here x_res and y_res are the resolutions that we need. There are many [resampling](https://gdal.org/en/stable/programs/gdalwarp.html#cmdoption-gdalwarp-r) methods. For a 2 m resolution using lanczos, this is the code snippet
+Here x_res and y_res are the resolutions that we need. There are many [resampling](https://gdal.org/en/stable/programs/gdalwarp.html#cmdoption-gdalwarp-r) methods available. 
+For a 2 m resolution using lanczos:
 **Code snippet**
 ```command-line
 gdalwarp -tr 2 2 -r lanczos input_file.tif output_file.tif

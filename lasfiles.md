@@ -1,4 +1,4 @@
-# 🗺️ DTM/LiDAR to FDS Input File Conversion Guide
+# DTM/LiDAR to FDS Input File Conversion Guide
 
 This guide outlines the process of downloading Digital Terrain Model (DTM) LiDAR data in `.las` format, preprocessing it, and converting it into files suitable for use with Fire Dynamics Simulator (FDS), typically by generating raster files (TIFF/NetCDF).
 

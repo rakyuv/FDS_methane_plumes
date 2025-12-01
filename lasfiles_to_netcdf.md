@@ -27,7 +27,6 @@ To combine adjacent `.laz` files, you need to install **LAStools**.
 * **Install LAStools:** Download the necessary tools from the official website.
 * **Merge Command:** Use `lasmerge` to combine the files.
 
-**Code Snippet:**
 ```command-line
 lasmerge -i input_file1.laz input_file2.laz -o merged_output.laz
 ```

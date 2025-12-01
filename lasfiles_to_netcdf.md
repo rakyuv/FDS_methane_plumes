@@ -60,7 +60,6 @@ Note: Replace ([xmin, xmax], [ymin, ymax]) with the actual geographic coordinate
 
 Execute the Pipeline: Run the PDAL command in your terminal:
 
-**Code snippet:**
 ```command-line
 pdal pipeline crop_pipeline.json
 ```
@@ -110,7 +109,6 @@ Note: This example uses a 1.0m resolution and the Inverse Distance Weighting (ID
 
 * Execute the Conversion:
 
-**Code snippet**
 ```command-line
 pdal pipeline pipeline.json
 ```
@@ -125,13 +123,12 @@ The final steps involve adjusting the raster resolution and converting the forma
 
 If a coarser resolution is required, use gdalwarp with the target resolution (-tr) flag.
 
-**Code snippet**
 ```command-line
 gdalwarp -tr <x_res> <y_res> -r <resampling_method> <input_file.tif> <output_file.tif>
 ```
 Here x_res and y_res are the resolutions that we need. There are many [resampling](https://gdal.org/en/stable/programs/gdalwarp.html#cmdoption-gdalwarp-r) methods available. 
 For a 2 m resolution using lanczos:
-**Code snippet**
+
 ```command-line
 gdalwarp -tr 2 2 -r lanczos input_file.tif output_file.tif
 ```
@@ -140,7 +137,6 @@ gdalwarp -tr 2 2 -r lanczos input_file.tif output_file.tif
 FDS may prefer or require input files in the NetCDF (.nc) format. Use gdal_translate for this final conversion.
 Code snippet
 
-**Code snippet**
 ``` command-line
 gdal_translate -of NETCDF <input_file.tif> <output_file.nc>
 ```

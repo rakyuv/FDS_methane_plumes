@@ -29,21 +29,19 @@ gdalwarp -overwrite -s_srs EPSG:source -t_srs EPSG:target -r bilinear -of GTiff 
 FDS may prefer or require input files in the NetCDF (`.nc`) format. Use the `gdal_translate` utility for this final conversion.
 
 ```command-line
-gdal_translate -of NETCDF output_dem.tif output_file.nc
+gdal_translate -of NETCDF output_dem.tif terrain_30m.nc
 ```
-The resulting file, `output_file.nc`, is the metric elevation map ready to be processed for FDS input. Make sure to rename this file following the resolution pattern (e.g., `terrain_30m.nc`) if you use the multi-resolution Python script below.
+The resulting file, `terrain_30m.nc`, is the metric elevation map ready to be processed for FDS input. Make sure to rename this file following the resolution pattern (e.g., `terrain_30m.nc`) if you use the multi-resolution Python script below.
 
 ## 3. Python Script: Generating FDS &OBST Cards
 
-If your FDS domain uses a single resolution, you need one `output_file.nc`. When using multiple grid resolutions in an FDS simulation, you typically set up a domain with concentric zones :
+If your FDS domain uses a single resolution, you need one `terrain_30m.nc`. When using multiple grid resolutions in an FDS simulation, you typically set up a domain with concentric zones :
 
   * Highest Resolution: In the center, covering the immediate area of interest (e.g., 2 m resolution).
 
   * Intermediate Resolutions: In rings (annular zones) moving outward (e.g., 5 m, 10 m resolution).
 
   * Lowest Resolution: In the outermost ring, covering the far-field (e.g., 30 m resolution).
-
-How terrain_limit_l and terrain_limit_u Define These Zones
 
 The script uses these limits to ensure that the &OBST cards generated from a specific NetCDF file (e.g., terrain_5m.nc) only fall within their designated square-shaped annular zone. The limits are measured as the maximum absolute distance from the center of the domain (x=0,y=0).
 

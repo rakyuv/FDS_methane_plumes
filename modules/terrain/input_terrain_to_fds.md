@@ -35,7 +35,22 @@ The resulting file, `output_file.nc`, is the metric elevation map ready to be pr
 
 ## 3. Python Script: Generating FDS &OBST Cards
 
-If your FDS domain uses a single resolution, you need one `output_file.nc`. For simulations with multiple grid resolutions (highest resolution near the source, diminishing outward), you will need a NetCDF file corresponding to each resolution (e.g., `terrain_1m.nc`, `terrain_3m.nc`).
+If your FDS domain uses a single resolution, you need one `output_file.nc`. When using multiple grid resolutions in an FDS simulation, you typically set up a domain with concentric zones :
+
+  * Highest Resolution: In the center, covering the immediate area of interest (e.g., 2 m resolution).
+
+  * Intermediate Resolutions: In rings (annular zones) moving outward (e.g., 5 m, 10 m resolution).
+
+  * Lowest Resolution: In the outermost ring, covering the far-field (e.g., 30 m resolution).
+
+How terrain_limit_l and terrain_limit_u Define These Zones
+
+The script uses these limits to ensure that the &OBST cards generated from a specific NetCDF file (e.g., terrain_5m.nc) only fall within their designated square-shaped annular zone. The limits are measured as the maximum absolute distance from the center of the domain (x=0,y=0).
+
+| Parameter	 | Meaning |	Boundary Type | Purpose |  
+| :---: | :--- | :--- |  :--- |
+|terrain_limit_u (Upper Limit)	| The outer edge of the current resolution zone. If a grid point is greater than this limit, it belongs to a coarser (lower) resolution zone outside of this block.	| Outer Boundary	| Defines the maximum extent for this resolution block. |
+| terrain_limit_l (Lower Limit)	| The inner edge of the current resolution zone. If a grid point is smaller than this limit, it belongs to a finer (higher) resolution zone inside this block.	| Inner Boundary	| Creates a 'hole' in the center for the next, finer resolution. |
 
 The following Python script reads the NetCDF data, handles multiple resolution zones, and outputs the terrain definition directly as `&OBST` name lists into a `terrain.fds` file.
 
@@ -154,4 +169,16 @@ if __name__ == '__main__':
 
         print("\nTerrain generation complete. Check 'terrain.fds' for output.", file=file_handle)
 ```
+**Example from the Script**
+
+In the example resolution_cases, the limits are structured to form continuous, non-overlapping rings:
+| Resolution	 | Zone Type | lower_limit | upper_limit | Resulting zone | 
+| :---: | :--- | :--- |:--- |:--- |
+| 2 m	| Center	| None	| 48	| Everything from the center up to ±48 m.|
+| 5 m	| Annular  Ring	| 44	| 140	| Everything between ±44 m and ±140 m.|
+| 10 m |	Annular  Ring	| 130	| 420	|Everything between ±130 m and ±420 m.|
+| 30 m |	Outer  Ring	| 400	| None	|Everything from ±400 m outward.|
+
+The crucial design point is that the limits must slightly overlap or butt-up against each other (e.g., 2 m ends at 48, 5 m starts at 44) to ensure all grid points are covered and to manage the transition zones between meshes effectively.
+
 Save the code above as a Python file (e.g., `generate_terrain_fds.py`) and run it to create the `terrain.fds` file, which can then be included in your main FDS input file.

@@ -88,7 +88,7 @@ To obtain a laz file that contains the ground, buildings, smaller and medium veg
 
 4. Converting LAZ to TIFF (PDAL)
 
-The next step is to convert the filtered point cloud (.laz) into a raster image (.tif), specifically a Digital Surface Model (DSM) or Digital Elevation Model (DEM). This uses the PDAL writers.gdal driver.
+The next step is to convert the filtered point cloud (`.laz`) into a raster image (`.tif`), specifically a Digital Surface Model (DSM) or Digital Elevation Model (DEM). This uses the PDAL writers.gdal driver.
 
 * Conversion Pipeline (pipeline.json):
 
@@ -140,7 +140,7 @@ gdalwarp -tr 2 2 -r lanczos input_file.tif output_file.tif
 ```
 ### 5.2. Converting to NetCDF (gdal_translate)
 
-FDS may prefer or require input files in the NetCDF (.nc) format. Use gdal_translate for this final conversion.
+FDS may prefer or require input files in the NetCDF (`.nc`) format. Use gdal_translate for this final conversion.
 Code snippet
 
 ``` command-line

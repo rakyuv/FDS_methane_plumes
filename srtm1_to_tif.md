@@ -14,7 +14,7 @@ First, ensure you have the `elevation` package installed in your Python environm
 
 The `elevation` command-line utility, `eio`, is used to clip and download the necessary SRTM1 tiles based on bounding box coordinates. It automatically handles fetching data.
 
-   * Coordinates: The example below is centered near 49.975∘N,18.735∘E and defines a bounding box large enough to cover the area of interest.
+  * Coordinates: The example below is centered near 49.975∘N,18.735∘E and defines a bounding box large enough to cover the area of interest.
 
   * Bounding Box Format: The format is `min_lon min_lat max_lon max_lat`.
 
@@ -38,16 +38,15 @@ gdalbuildvrt merged.vrt N49E018.tif N50E018.tif
 
 The downloaded or merged file is usually larger than your simulation domain. Use `gdal_translate` with the `-projwin` option to crop the file precisely to your boundaries.
 
-  Input: The `merged.vrt` file.
+  * Input: The `merged.vrt` file.
 
-  Output: `cropped.tif`
+  * Output: `cropped.tif`
 
 ```command-line
     -projwin Format: `upper_left_lon upper_left_lat lower_right_lon lower_right_lat`. 
 ```
 
 These coordinates must be in the input file's spatial reference system (Lat/Lon).
-
 
 ```command-line
 gdal_translate -projwin 18.67933600352784 50.011231351404604 18.79108043929536 49.93928890536144 merged.vrt cropped.tif

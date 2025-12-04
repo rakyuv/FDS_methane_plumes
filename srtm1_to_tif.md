@@ -41,10 +41,9 @@ The downloaded or merged file is usually larger than your simulation domain. Use
   * Input: The `merged.vrt` file.
 
   * Output: `cropped.tif`
+    
+  *  -projwin Format: `upper_left_lon upper_left_lat lower_right_lon lower_right_lat`. 
 
-```command-line
-    -projwin Format: `upper_left_lon upper_left_lat lower_right_lon lower_right_lat`. 
-```
 
 These coordinates must be in the input file's spatial reference system (Lat/Lon).
 

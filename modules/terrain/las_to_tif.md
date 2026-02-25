@@ -40,7 +40,7 @@ You will need to create a JSON pipeline file to define the cropping operation.
 
 **Code Snippet:**
 ```JSON
-  "pipeline": [
+  [
     {
       "type": "readers.las",
       "filename": "input.laz"

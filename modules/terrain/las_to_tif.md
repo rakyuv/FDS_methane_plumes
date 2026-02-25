@@ -95,8 +95,7 @@ The next step is to convert the filtered point cloud (`.laz`) into a raster imag
 **Code Snippet:**
 ```JSON
 
-{
-  "pipeline": [
+[
     {
       "type": "readers.las",
       "filename": "input.laz"
@@ -109,7 +108,6 @@ The next step is to convert the filtered point cloud (`.laz`) into a raster imag
       "output_type": "idw"
     }
   ]
-}
 ```
 Note: This example uses a 1.0m resolution and the Inverse Distance Weighting (IDW) method to interpolate the raster values from the point cloud.
 

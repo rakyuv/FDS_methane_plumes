@@ -48,7 +48,7 @@ The wind blows approximately from the south (~0° North), with a slight veering 
 
 - `LEVEL_SET_MODE = 3`: wind field adapts to terrain topography; no fire.
 - `THICKEN_OBSTRUCTIONS = T`: ensures terrain obstructions span at least one full grid cell. 
-The terrain information is added through `OBST`, and the process is explained 
+The terrain information is added through `OBST`, and the process is explained [here](https://github.com/rakyuv/FDS_methane_plumes/tree/main/modules/terrain)
 
 ---
 

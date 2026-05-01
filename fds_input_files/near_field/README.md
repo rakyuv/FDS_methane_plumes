@@ -1,4 +1,4 @@
-# CH4 Release from a Point Source — FDS Simulation
+# CH₄ Release from a Point Source — FDS Simulation
 
 ## Overview
 
@@ -127,3 +127,4 @@ smokeview ch4_release
 ## References
 
 - McGrattan, K. et al. *Fire Dynamics Simulator User's Guide*. NIST Special Publication 1019. National Institute of Standards and Technology, Gaithersburg, MD. [https://pages.nist.gov/fds-smv/](https://pages.nist.gov/fds-smv/)
+- Yuvaraj, R., Lauvaux, T., Abdallah, C., Ciais, P., Akani Guery, J., Bonne, J.L., Groshenry, A., Hoang, N.M. and Joly, L., 2026. High-Resolution Modeling of Methane Plumes: Validation and Sensitivity Experiments to Explore Emission Quantification Approaches. Environmental Science & Technology.

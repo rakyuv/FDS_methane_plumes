@@ -119,7 +119,6 @@ smokeview ch4_release
 ```
 .
 ├── ch4_release.fds       # Main FDS input file
-├── terrainOBST.png       # Terrain image used for topography
 └── README.md             # This file
 ```
 

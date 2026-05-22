@@ -50,7 +50,7 @@ The script uses these limits to ensure that the &OBST cards generated from a spe
 |terrain_limit_u (Upper Limit)	| The outer edge of the current resolution zone. If a grid point is greater than this limit, it belongs to a coarser (lower) resolution zone outside of this block.	| Outer Boundary	| Defines the maximum extent for this resolution block. |
 | terrain_limit_l (Lower Limit)	| The inner edge of the current resolution zone. If a grid point is smaller than this limit, it belongs to a finer (higher) resolution zone inside this block.	| Inner Boundary	| Creates a 'hole' in the center for the next, finer resolution. |
 
-The following Python script reads the NetCDF data, handles multiple resolution zones, and outputs the terrain definition directly as `&OBST` name lists into a `terrain.fds` file.
+The following Python script reads the NetCDF data, handles multiple resolution zones, and outputs the terrain definition directly as `&OBST` name lists into a `terrain.txt` file.
 
 ```Python
 import numpy as np
@@ -130,7 +130,7 @@ def read_terrain_files(resolution):
     return x, y, z, zmin
 
 if __name__ == '__main__':
-    output_filename = 'terrain.fds'
+    output_filename = 'terrain.txt'
 
     with open(output_filename, 'w') as file_handle:
         print("&HEAD CHID='TERRAIN_INPUT', TITLE='Terrain Obstacles' /", file=file_handle)
@@ -165,7 +165,7 @@ if __name__ == '__main__':
                 data = mock_data[res]
                 write_terrain(data['x'], data['y'], data['z'], combined_zmin, case['lower_limit'], case['upper_limit'], file_handle)
 
-        print("\nTerrain generation complete. Check 'terrain.fds' for output.", file=file_handle)
+        print("\nTerrain generation complete. Check 'terrain.txt' for output.", file=file_handle)
 ```
 **Example from the Script**
 
@@ -179,4 +179,4 @@ In the example resolution_cases, the limits are structured to form continuous, n
 
 The crucial design point is that the limits must slightly overlap or butt-up against each other (e.g., 2 m ends at 48, 5 m starts at 44) to ensure all grid points are covered and to manage the transition zones between meshes effectively.
 
-Save the code above as a Python file (e.g., `generate_terrain_fds.py`) and run it to create the `terrain.fds` file, which can then be included in your main FDS input file.
+Save the code above as a Python file (e.g., `generate_terrain_fds.py`) and run it to create the `terrain.txt` file, which can then be included in your main FDS input file.

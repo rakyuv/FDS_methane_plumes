@@ -60,26 +60,30 @@ pip install -r requirements.txt
 ### 3. Edit `params.txt`
 
 All simulation parameters are centralized in `params.txt`. Open it and set at minimum:
-Domain
-lon_min     = 2.5
-lon_max     = 3.0
-lat_min     = 48.5
-lat_max     = 49.0
-start_date  = 2024-06-01
-start_time  = 12:00:00
+
+```
+# Domain
+lon_min        = 2.5
+lon_max        = 3.0
+lat_min        = 48.5
+lat_max        = 49.0
+start_date     = 2024-06-01
+start_time     = 12:00:00
 sim_duration_s = 3600
-Source
+
+# Source
 emission_rate_kg_s = 0.05
-source_lon  = 2.75
-source_lat  = 48.75
-source_height_m = 1.0
-Resolution
+source_lon         = 2.75
+source_lat         = 48.75
+source_height_m    = 1.0
+
+# Resolution
 dx_m = 5
 dy_m = 5
 dz_m = 5
+```
 
 A full annotated description of every parameter is in [`params.txt`](params.txt).
-
 ### 4. Generate the FDS input file
 
 ```bash

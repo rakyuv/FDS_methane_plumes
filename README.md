@@ -122,7 +122,7 @@ Refer to the [FDS user guide](https://pages.nist.gov/fds-smv/) for parallelisati
 
 ### 7. Postprocessing (convert `.slcf` to NetCDF)
 
-Two scripts are available depending on your simulation size and needs. See [`postprocessing/README.md`]() for full details.
+Two scripts are available depending on your simulation size and needs. See [`post_process/README.md`](post_process/README.md) for full details.
 
 **Full time series** — one or two spatial resolutions, shorter simulations:
 ```bash

@@ -122,11 +122,24 @@ Refer to the [FDS user guide](https://pages.nist.gov/fds-smv/) for parallelisati
 
 ### 7. Postprocessing (convert `.slcf` to NetCDF)
 
+Two scripts are available depending on your simulation size and needs. See [`postprocessing/README.md`]() for full details.
+
+**Full time series** — one or two spatial resolutions, shorter simulations:
 ```bash
-python postprocessing/slcf_to_netcdf.py
+python postprocessing/slcf_to_netcdf_all_time_steps.py
 ```
 
-Converts all `.slcf` slice files produced by FDS into CF-compliant `.nc` files, ready for analysis in Python or NCO/CDO.
+**Discrete time steps** — multiple spatial resolutions, large simulations:
+```bash
+python postprocessing/slcf_to_netcdf_discrete_time_steps.py
+```
+
+Override defaults via arguments if needed:
+```bash
+python postprocessing/slcf_to_netcdf_discrete_time_steps.py --resolutions 1 3 --target_res 1 --time_steps 0 100 200
+```
+
+Both scripts output NetCDF files organized as `variable(t, z, y, x)`, ready for analysis in Python or NCO/CDO.
 
 ---
 

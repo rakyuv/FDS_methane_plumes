@@ -24,11 +24,6 @@ These parameters provide boundary conditions and near-surface profiles:
 | Skin Temperature (T_ground) | Defines the ground surface temperature, important for heat transfer. |
 | Surface Pressure | Used to calculate atmospheric density and stability. |
 | 2 m Dewpoint Temperature | Used for humidity and stability calculations. |
-| Mean Sea Level Pressure | Provides synoptic-scale pressure field. |
-| Total Precipitation | Contextual atmospheric condition. |
-| Soil Temperature Level 1 | Near-surface soil thermal state. |
-| High/Low Vegetation Cover | Surface roughness and land-use context. |
-| Boundary Layer Height | Defines the depth of the turbulent mixing layer. |
 
 Download Link: [ERA5 Single Levels](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download)
 
@@ -41,8 +36,6 @@ These parameters are essential for constructing a vertical profile of the atmosp
 | Velocity Profiles (u and v) | Defines wind speed and direction at different pressure altitudes. |
 | Temperature Profiles (T) | Defines air temperature at different pressure altitudes. |
 | Geopotential (z) | Converts pressure levels to geometric altitudes above MSL. |
-| Specific Humidity | Atmospheric moisture content at each level. |
-| Relative Humidity | Contextual stability and moisture information. |
 
 Download Link: [ERA5 Pressure Levels](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)
 

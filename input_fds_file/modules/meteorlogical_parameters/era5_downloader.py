@@ -61,13 +61,7 @@ SINGLE_LEVEL_VARIABLES = [
     "10m_u_component_of_wind",
     "10m_v_component_of_wind",
     "surface_pressure",
-    "mean_sea_level_pressure",
-    "total_precipitation",
     "skin_temperature",
-    "soil_temperature_level_1",
-    "high_vegetation_cover",
-    "low_vegetation_cover",
-    "boundary_layer_height",
 ]
 
 PRESSURE_LEVEL_VARIABLES = [
@@ -75,8 +69,6 @@ PRESSURE_LEVEL_VARIABLES = [
     "v_component_of_wind",
     "temperature",
     "geopotential",
-    "specific_humidity",
-    "relative_humidity",
 ]
 
 # All 37 standard ERA5 pressure levels (hPa)

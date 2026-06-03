@@ -1,133 +1,183 @@
-# Integrating Meteorological Data into FDS
+# era5_downloader.py
 
-To accurately simulate the flow domain in FDS, it's essential to provide realistic meteorological parameters, particularly temperature and velocity profiles, which are crucial for driving turbulence and atmospheric stability.
+Downloads ERA5 reanalysis data for a given location and timestamp, and
+converts it into FDS-ready wind and temperature profiles. Designed to be
+used either as a standalone script or imported as a module by `build_fds.py`.
 
-## Data Sources
+---
 
-The preferred method is to use in-situ instrument measurements (e.g., weather station data) and input these parameters directly into the FDS input file.
+## What it downloads
 
-However, in the absence of direct measurements, we rely on the ERA5 hourly averaged datasets provided by the Copernicus Climate Change Service (C3S) to derive the necessary atmospheric boundary layer conditions for the simulation. It is highly recommended to download the data in NetCDF (.nc) format, as this is a standard format that is easy to process and integrate with Python libraries like netCDF4 (as seen in the terrain generation process).
+Two CDS API requests are made, both clipped to a 0.25° box around the target
+point:
 
-## Required ERA5 Parameters
+| Request | Variables | Output |
+|---|---|---|
+| Single-level reanalysis | 2 m temperature, 2 m dewpoint, 10 m U/V wind, surface pressure, skin temperature | `era5_single_levels.nc` |
+| Pressure-level reanalysis | U wind, V wind, temperature, geopotential | `era5_pressure_levels.nc` |
 
-ERA5 data is organized into two main dataset types, and we need specific variables from both:
+From these two files a third output is derived:
 
-### 1. Surface Levels (Single Levels)
+| Output | Description |
+|---|---|
+| `era5_fds_ramp_<YYYY-MM-DD>_<HH>UTC.txt` | FDS `&WIND` and `&RAMP` namelists ready to paste or include in an FDS input file |
 
-These parameters provide boundary conditions and near-surface profiles:
+All files are written to the current working directory.
 
-| Parameters | FDS Relevance |
-| :---: | :--- |
-| 10 m u & v component of wind | Defines horizontal wind speed and direction at 10 m. |
-| 100 m u & v component of wind | Defines horizontal wind speed and direction at 100 m. |
-| 2 m Temperature | Defines the air temperature near the ground. |
-| Skin Temperature (T_ground) | Defines the ground surface temperature, important for heat transfer. |
-| Surface Pressure | Used to calculate atmospheric density and stability. |
-| 2 m Dewpoint Temperature | Used for humidity and stability calculations. |
+---
 
-Download Link: [ERA5 Single Levels](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download)
-
-### 2. Pressure Levels
-
-These parameters are essential for constructing a vertical profile of the atmosphere above the surface. All 37 standard ERA5 pressure levels are used (1–1000 hPa), covering the full atmospheric column from the near-surface up to ~48 km:
-
-| Parameters | FDS Relevance |
-| :---: | :--- |
-| Velocity Profiles (u and v) | Defines wind speed and direction at different pressure altitudes. |
-| Temperature Profiles (T) | Defines air temperature at different pressure altitudes. |
-| Geopotential (z) | Converts pressure levels to geometric altitudes above MSL. |
-
-Download Link: [ERA5 Pressure Levels](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)
-
-## Automated Download: `era5_downloader.py`
-
-The script `era5_downloader.py` automates the retrieval and processing of both dataset types for a specified location and timestamp via the [CDS API](https://cds.climate.copernicus.eu/api-how-to).
-
-### Requirements
+## Requirements
 
 ```bash
 pip install cdsapi xarray netCDF4 numpy
 ```
 
-A valid CDS API key file must exist at `~/.cdsapirc`:
+A valid `~/.cdsapirc` file is required with your Copernicus CDS API key:
 
 ```
 url: https://cds.climate.copernicus.eu/api/v2
-key: YOUR-UID:YOUR-API-KEY
+key: <your-uid>:<your-api-key>
 ```
 
-### Outputs
+Register and obtain a key at: https://cds.climate.copernicus.eu
 
-| File | Contents |
-| :--- | :--- |
-| `era5_single_levels.nc` | All single-level variables as a NetCDF file |
-| `era5_pressure_levels.nc` | All pressure-level variables as a NetCDF file |
-| `era5_fds_ramp_<DATE>_<HH>UTC.txt` | FDS-ready `&WIND` and `&RAMP` namelists |
+---
 
-### FDS RAMP Profile Format
+## Usage
 
-The pressure-level data is processed into FDS `&RAMP` namelists ready to paste directly into an FDS input file. Geopotential at each pressure level is converted to geometric altitude (m above MSL) using:
+### As a standalone script
 
-$$z_{\text{geom}} = \frac{R_e \cdot z_{\text{gp}}}{R_e - z_{\text{gp}}}, \quad z_{\text{gp}} = \frac{\Phi}{g_0}$$
-
-where $R_e = 6{,}356{,}766$ m and $g_0 = 9.80665$ m s⁻².
-
-The output file contains two profile types:
-
-- **Wind speed profile** (`RAMP ID='spd'`): scalar wind speed $\sqrt{u^2 + v^2}$ at each geometric altitude.
-- **Temperature profile** (`RAMP ID='T profile'`): dimensionless ratio $T(z)\,/\,T_{\text{2m}}$ (both in Kelvin), anchored to 1.0 at the surface.
-
-Example output:
-
-```
-&WIND SPEED=7.43., RAMP_SPEED_Z='spd', RAMP_TMP0_Z='T profile', DIRECTION=214.3/
-!
-! ERA5 Velocities
-&RAMP ID='spd', Z=111.23, F=4.21/
-&RAMP ID='spd', Z=287.54, F=5.88/
-...
-! ERA5 Temperature Ratios  (T(z) / T_2m)
-&RAMP ID='T profile', Z=111.23, F=0.99/
-&RAMP ID='T profile', Z=287.54, F=0.98/
-...
-```
-
-### Usage — Standalone
-
-Edit the parameter block at the top of the script and run directly:
-
-```python
-# era5_downloader.py — USER PARAMETERS
-LAT     =  48.8566    # decimal degrees (positive = North)
-LON     =   2.3522    # decimal degrees (positive = East)
-DATE    = "2023-07-15"  # YYYY-MM-DD
-HOUR    =  12           # UTC hour, integer 0–23
-OUT_DIR = "."           # output folder (created if absent)
-```
+Edit the `USER PARAMETERS` block at the top of the file, then run:
 
 ```bash
 python era5_downloader.py
 ```
 
-### Usage — As an Imported Module
-
-The script exposes a `run()` function so that any other script can fetch the outputs by simply passing the required parameters:
+### As an imported module
 
 ```python
 from era5_downloader import run
 
 result = run(
-    lat     = 48.8566,
-    lon     =  2.3522,
-    date    = "2023-07-15",
-    hour    = 12,
-    out_dir = "./outputs",
+    lat   = 49.583,
+    lon   = 18.441,
+    date  = "2024-06-01",
+    hour  = 12,
+    z_min = 247.0,
 )
 
-# result keys:
-#   result["netcdf_single"]    → path to era5_single_levels.nc
-#   result["netcdf_pressure"]  → path to era5_pressure_levels.nc
-#   result["ramp_txt"]         → path to FDS RAMP text file
+# result is a dict:
+# {
+#   "ramp_txt"     : "era5_fds_ramp_2024-06-01_12UTC.txt",
+#   "t2m"          : 293.15,   # K  → used as TMPA in &MISC
+#   "skin_temp"    : 298.40,   # K  → used as TMP_FRONT in &SURF
+#   "surface_pres" : 97800.0,  # Pa → used as P_INF in &MISC
+# }
 ```
 
-`run()` returns a dictionary of absolute file paths, which the calling script can immediately use to open the NetCDF files with `xarray` / `netCDF4`, or to locate the RAMP text file for injection into an FDS input deck.
+---
+
+## Parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `lat` | `float` | Latitude of the point of interest in decimal degrees (positive = North) |
+| `lon` | `float` | Longitude of the point of interest in decimal degrees (positive = East) |
+| `date` | `str` | Date in `YYYY-MM-DD` format |
+| `hour` | `int` | UTC hour, integer 0–23 |
+| `z_min` | `float` | Lowest Z coordinate of the FDS domain in metres above sea level. Used to anchor the 10 m wind point at `z_min + 10`. Defaults to `0.0` |
+
+---
+
+## Returned values
+
+The `run()` function returns a dict with the following keys:
+
+| Key | Unit | FDS use |
+|---|---|---|
+| `ramp_txt` | — | Path to the generated RAMP file |
+| `t2m` | K | 2 m air temperature → `TMPA` in `&MISC` |
+| `skin_temp` | K | Land surface skin temperature → `TMP_FRONT` in `&SURF` for the ground surface |
+| `surface_pres` | Pa | Surface pressure → `P_INF` in `&MISC` |
+
+---
+
+## FDS RAMP file structure
+
+The generated `.txt` file contains a `&WIND` namelist followed by three sets
+of `&RAMP` namelists:
+
+```
+! ERA5 FDS Wind & Temperature Profile
+! Date : 2024-06-01  12:00 UTC
+! Lat  : 49.5832  Lon : 18.4408
+! T_2m : 293.15 K  |  Skin T : 298.40 K  |  Pres : 97800.00 Pa
+!
+&WIND SPEED=4.32, RAMP_SPEED_Z='spd', RAMP_DIRECTION_Z='dir', RAMP_TMP0_Z='tmp_profile', DIRECTION=247.3/
+!
+! ERA5 Wind Speed Profile
+&RAMP ID='spd', Z=257.00, F=4.32/
+&RAMP ID='spd', Z=312.45, F=6.10/
+...
+!
+! ERA5 Wind Direction Profile
+&RAMP ID='dir', Z=257.00, F=247.3/
+&RAMP ID='dir', Z=312.45, F=251.8/
+...
+!
+! ERA5 Temperature Ratios  (T(z) / T_2m)
+&RAMP ID='tmp_profile', Z=285.10, F=0.997/
+&RAMP ID='tmp_profile', Z=450.30, F=0.983/
+...
+```
+
+### `spd` — wind speed profile
+
+Derived from ERA5 pressure-level U and V wind components converted to speed
+via `sqrt(u² + v²)`. The ERA5 10 m wind (`u10`, `v10`) from the single-level
+dataset is inserted as an additional point at `z_min + 10` m. The combined
+array is sorted by altitude before writing, so the 10 m point sits correctly
+in the profile even when `z_min` is above sea level.
+
+### `dir` — wind direction profile
+
+Meteorological convention: the direction the wind is coming **from**, in
+degrees clockwise from North. Computed as `arctan2(u, v) % 360`. The same
+10 m anchor point and altitude sorting applied to speed is applied here.
+
+### `tmp_profile` — temperature ratio profile
+
+`T(z) / T_2m` at each pressure level, sorted bottom to top. The 2 m
+temperature is used as the normalisation reference, consistent with FDS
+`TMPA`. No surface anchor point is added — the profile uses pressure-level
+data only, exactly as ERA5 provides it.
+
+---
+
+## ERA5 pressure levels
+
+All 37 standard ERA5 pressure levels are requested (1 hPa to 1000 hPa).
+Geopotential `z` (m² s⁻²) is converted to geometric altitude above MSL using:
+
+```
+z_geometric = (Re × z_geopotential/g₀) / (Re − z_geopotential/g₀)
+```
+
+where `Re = 6 356 766 m` and `g₀ = 9.80665 m s⁻²`.
+
+---
+
+## Notes
+
+- ERA5 data has a native resolution of 0.25° (~28 km). The download is clipped
+  to a 0.25° box around the target point and the nearest grid cell is selected,
+  so the profile represents the ERA5 column at that location.
+- ERA5 reanalysis data is available from 1940 to present with a delay of
+  approximately 5 days.
+- The CDS API queues requests — download time depends on server load and can
+  range from seconds to several minutes.
+- Downloaded NetCDF files are kept after the run and can be inspected with
+  xarray or any NetCDF viewer. Re-running the script will overwrite them.
+- When used via `build_fds.py`, `z_min`, `lat`, `lon`, `date`, and `hour` are
+  all passed automatically from the shared parameter block — no duplication
+  is needed.

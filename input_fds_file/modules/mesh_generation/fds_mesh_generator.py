@@ -249,12 +249,25 @@ def run(config: MeshConfig = None) -> str:
     generator = FDSMeshGenerator(config)
 
     with open(config.output, "w") as fh:
-        final_res, final_domain, z_min, _ = generator.generate_all_resolutions(fh)
+        final_res, final_domain, z_min, z_max = generator.generate_all_resolutions(fh)
         generator.generate_constant_resolution_boundaries(fh, final_res, final_domain)
 
-    print(f"Mesh written to '{config.output}' ({generator.current_mesh_id} meshes total).")
-    return config.output
+    # Constant boundary layers expand the domain further
+    dx = final_res * config.ijk[0]
+    final_domain_with_layers = final_domain + 2 * dx * config.layers
 
+
+    print(f"Mesh written to '{config.output}' ({generator.current_mesh_id} meshes total).")
+
+    return {
+        "output"  : config.output,
+        "x_min"   : -final_domain_with_layers / 2,
+        "x_max"   :  final_domain_with_layers / 2,
+        "y_min"   : -final_domain_with_layers / 2,
+        "y_max"   :  final_domain_with_layers / 2,
+        "z_min"   :  z_min,
+        "z_max"   :  z_max,
+    }
 
 # ---------------------------------------------------------------------------
 # CLI entry point

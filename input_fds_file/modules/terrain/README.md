@@ -115,23 +115,23 @@ pip install elevation
 
 **Using a mesh file to derive domain and resolution automatically:**
 ```bash
-python srtm_to_fds.py 49.583 18.441 --mesh-file mesh.txt -o terrain.txt
+python elevation_to_fds.py 49.583 18.441 --mesh-file mesh.txt -o terrain.txt
 ```
 
 **Using a manual domain size:**
 ```bash
-python srtm_to_fds.py 49.583 18.441 --size 5670 -o terrain.txt
+python elevation_to_fds.py 49.583 18.441 --size 5670 -o terrain.txt
 ```
 
 **With a local high-resolution GeoTIFF:**
 ```bash
-python srtm_to_fds.py 49.583 18.441 --mesh-file mesh.txt --local-tif lidar.tif -o terrain.txt
+python elevation_to_fds.py 49.583 18.441 --mesh-file mesh.txt --local-tif lidar.tif -o terrain.txt
 ```
 
 ### As an imported module
 
 ```python
-from srtm_to_fds import get_terrain, parse_mesh_file
+from elevation_to_fds import get_terrain, parse_mesh_file
 
 domain_size, terrain_resolutions = parse_mesh_file("mesh.txt")
 

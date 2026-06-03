@@ -12,7 +12,7 @@ produce a complete, ready-to-run `inputfile.fds` from a single parameter block.
 
 ## Overview
 
-`build_fds.py` is the single entry point for the whole pipeline. You edit the
+`build_fds_inputFile.py` is the single entry point for the whole pipeline. You edit the
 parameters block at the top, run the script, and get `inputfile.fds` out. The
 three modules it drives are:
 

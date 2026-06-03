@@ -1,182 +1,262 @@
-# Generating FDS Terrain Input from DEM Data
+# srtm_to_fds.py
 
-This document outlines the final steps for preparing Digital Elevation Model (DEM) data for use as terrain input in a Fire Dynamics Simulator (FDS) input file using the `&OBST` name list.
+Downloads or reads elevation data and converts it into FDS `&OBST` terrain
+cards for multi-resolution domains. Designed to be used either as a standalone
+CLI tool or imported as a module by `build_fds.py`.
 
-The input process supports data from various sources, including:
+---
 
-   * SRTM1: Global 30-meter resolution DEM. (Refer to [this file](srtm1_to_tif.md) for download and conversion steps).
+## Overview
 
-   * LiDAR: High-resolution datasets available in certain areas. (Refer to [this file](lasfiles_to_tif.md) for conversion steps).
+FDS terrain is represented as a stack of solid `&OBST` blocks, one per grid
+cell, rising from a common floor elevation (`zmin`) up to the terrain surface.
+This script handles the full pipeline:
 
-The core requirement for FDS is that the elevation data must be in a metric coordinate system.
-## 1. Reprojecting to a Metric Coordinate System (GDAL)
+1. Determine the domain size and resolution tiers from a mesh file or manual input
+2. Load elevation data — from a local GeoTIFF if available, otherwise download SRTM1 automatically
+3. Reproject and resample to a metric grid centred on the source point
+4. Write `&OBST` cards organised into concentric resolution rings
 
-The raw DEM data is usually in the angular (Lat/Lon) WGS84 system. FDS requires units in meters. The `gdalwarp` utility is used to perform this spatial reprojection.
+---
 
-```command-line
-gdalwarp -overwrite -s_srs EPSG:source -t_srs EPSG:target -r bilinear -of GTiff cropped.tif output_dem.tif
+## Elevation data sources
+
+| Source | When used | Resolution |
+|---|---|---|
+| Local GeoTIFF (`.tif`) | When `--local-tif` is provided and target resolution ≤ 30 m | Whatever the file contains — typically LiDAR at 1–5 m |
+| SRTM1 (auto-download) | When no local file is provided, or resolution > 30 m | ~30 m native, resampled to target |
+
+The local file takes priority for fine resolutions. SRTM1 is used as a fallback
+for coarser rings where its 30 m native resolution is sufficient. Any CRS is
+supported for local files — the script reprojects to UTM automatically.
+
+### When to use a local GeoTIFF
+
+SRTM1 at 30 m is adequate for the outer coarse rings of a typical FDS domain.
+For the inner high-resolution rings — where cell sizes are 1 m, 3 m, or 9 m —
+a higher-quality source is needed. LiDAR-derived terrain models (DTM/DSM) are
+the standard choice where available, typically at 1 m native resolution.
+
+LiDAR data is distributed as point cloud files (`.las` / `.laz`), which must be
+preprocessed into a GeoTIFF before being passed to this script via `--local-tif`.
+See [`las_to_tif.md`](las_to_tif.md) for the full preparation workflow.
+
+### Preparing a LiDAR GeoTIFF (summary)
+
+The conversion from `.laz` to a usable `.tif` involves four steps. Full
+commands and pipeline files are documented in [`las_to_tif.md`](las_to_tif.md).
+
+**1. Download LiDAR tiles**
+LiDAR datasets are country-specific. For France, tiles are available from the
+IGN GeoServices LiDAR HD portal as `.laz` files.
+
+**2. Merge and crop (LAStools + PDAL)**
+LiDAR tiles are large and often span multiple files. Use `lasmerge` to combine
+adjacent tiles, then a PDAL crop pipeline to clip to your area of interest:
+
+```bash
+lasmerge -i tile1.laz tile2.laz -o merged.laz
+pdal pipeline crop_pipeline.json   # bounds set to your domain extent
 ```
-| Parameter	 | Description |	Example Value |
-| :---: | :--- | :--- |
-| s_srs | (Source SRS)	| The current spatial reference system of the input file.	EPSG:4326 (WGS 84) |
-| t_srs | (Target SRS)	| The required metric projection for your location (e.g., a UTM Zone).	EPSG:32634 (WGS 84 / UTM zone 34N) |
-| -r | bilinear |	Uses bilinear interpolation for resampling, which results in smoother elevation data.	|
 
-**Important**: You must find the correct Target EPSG code for the specific geographic location of your area (usually a UTM Zone). Use the [EPSG Registry](https://epsg.io) for look-up.
+**3. Filter by point class (LAStools)**
+LiDAR point clouds contain multiple surface classes. Filter to the classes
+relevant to your simulation before rasterising:
 
-## 2. Converting TIFF to NetCDF Format (GDAL)
+| Class | Description | Typical use |
+|---|---|---|
+| 2 | Ground | Bare-earth terrain (DTM) |
+| 3 | Short vegetation | Surface model with low cover |
+| 4 | Medium vegetation | Surface model with medium cover |
+| 5 | Tall vegetation | Surface model with tall cover |
+| 6 | Buildings | Urban terrain |
 
-FDS may prefer or require input files in the NetCDF (`.nc`) format. Use the `gdal_translate` utility for this final conversion.
+For a terrain model that includes ground, buildings and vegetation up to medium
+height:
 
-```command-line
-gdal_translate -of NETCDF output_dem.tif terrain_30m.nc
+```bash
+las2las64 -i cropped.laz -o filtered.laz -keep_class 2 -keep_class 3 -keep_class 4 -keep_class 6
 ```
-The resulting file, `terrain_30m.nc`, is the metric elevation map ready to be processed for FDS input. Make sure to rename this file following the resolution pattern (e.g., `terrain_30m.nc`) if you use the multi-resolution Python script below.
 
-## 3. Python Script: Generating FDS &OBST Cards
+**4. Rasterise to GeoTIFF (PDAL + GDAL)**
+Convert the filtered point cloud to a raster at the desired resolution using
+PDAL's `writers.gdal` with IDW interpolation, then optionally resample to a
+coarser target resolution with `gdalwarp`:
 
-If your FDS domain uses a single resolution, you need one `terrain_30m.nc`. When using multiple grid resolutions in an FDS simulation, you typically set up a domain with concentric zones :
-
-  * Highest Resolution: In the center, covering the immediate area of interest (e.g., 2 m resolution).
-
-  * Intermediate Resolutions: In rings (annular zones) moving outward (e.g., 5 m, 10 m resolution).
-
-  * Lowest Resolution: In the outermost ring, covering the far-field (e.g., 30 m resolution).
-
-The script uses these limits to ensure that the &OBST cards generated from a specific NetCDF file (e.g., terrain_5m.nc) only fall within their designated square-shaped annular zone. The limits are measured as the maximum absolute distance from the center of the domain (x=0,y=0).
-
-| Parameter	 | Meaning |	Boundary Type | Purpose |  
-| :---: | :--- | :--- |  :--- |
-|terrain_limit_u (Upper Limit)	| The outer edge of the current resolution zone. If a grid point is greater than this limit, it belongs to a coarser (lower) resolution zone outside of this block.	| Outer Boundary	| Defines the maximum extent for this resolution block. |
-| terrain_limit_l (Lower Limit)	| The inner edge of the current resolution zone. If a grid point is smaller than this limit, it belongs to a finer (higher) resolution zone inside this block.	| Inner Boundary	| Creates a 'hole' in the center for the next, finer resolution. |
-
-The following Python script reads the NetCDF data, handles multiple resolution zones, and outputs the terrain definition directly as `&OBST` name lists into a `terrain.txt` file.
-
-```Python
-import numpy as np
-from netCDF4 import Dataset
-
-def write_terrain(x, y, z, zmin, terrain_limit_l, terrain_limit_u, file_handle):
-    """
-    Writes terrain data as FDS &OBST cards to a file.
-
-    Args:
-        x (np.array): Array of x-coordinates (centered).
-        y (np.array): Array of y-coordinates (centered).
-        z (np.array): 2D array of z-coordinates (terrain elevation).
-        zmin (float): The minimum elevation for the terrain.
-        terrain_limit_l (float): Lower limit for the terrain-defining square (inner boundary).
-        terrain_limit_u (float): Upper limit for the terrain-defining square (outer boundary).
-        file_handle: The file handle to write to.
-    """
-    resolution_local = x[1] - x[0]
-
-    # Print a header for the new terrain section
-    print(f"\nTerrain {resolution_local:.2f} m", file=file_handle)
-    
-    for i in range(len(x) - 1):
-        for j in range(len(y) - 1):
-            
-            x_val = x[i]
-            y_val = y[j]
-            
-            # Condition 1: Must be within the outer limit (or no outer limit defined)
-            is_within_outer_square = (terrain_limit_u is None) or \
-                                     (abs(x_val) < terrain_limit_u and abs(y_val) < terrain_limit_u)
-
-            # Condition 2: Must be outside the inner limit (or no inner limit defined)
-            is_outside_inner_square = (terrain_limit_l is None) or \
-                                      (abs(x_val) >= terrain_limit_l or abs(y_val) >= terrain_limit_l)
-
-            if is_within_outer_square and is_outside_inner_square:
-                # The &OBST card defines a solid block from Z=zmin up to the terrain elevation z[j,i]
-                print(f"&OBST XB={x[i]:.2f},{x[i+1]:.2f},{y[j]:.2f},{y[j+1]:.2f},{zmin:.2f},{z[j,i]:.2f}/", file=file_handle)
-
-def read_terrain_files(resolution):
-    """
-    Reads and pre-processes terrain data from a NetCDF file.
-    
-    Args:
-        resolution (int): The resolution in meters (e.g., 1, 3, 30).
-    
-    Returns:
-        tuple: x, y, z, and zmin numpy arrays.
-    """
-    # *** UPDATED FILE NAMING ***
-    inputFile = f'terrain_{resolution}m.nc' 
-    
-    # Example source coordinates to center the grid (UTM Easting, Northing)
-    source = np.array([767813.002, 5542589.380]) 
-    
-    with Dataset(inputFile, 'r') as ncfile:
-        x = np.array(ncfile.variables['x'][:]).squeeze()
-        y = np.array(ncfile.variables['y'][:]).squeeze()
-        z = np.array(ncfile.variables['Band1'][:, :]).squeeze()
-
-    # Center the coordinates relative to the source
-    x = x - source[0]
-    y = y - source[1]
-
-    # Rounding for FDS input precision
-    x = np.round(x, 2)
-    y = np.round(y, 2)
-    z = np.round(z, 2)
-    
-    # Calculate the minimum elevation (excluding potentially bad data points)
-    zmin = np.min(z[z != np.min(z)])
-    # Set all elevations below this calculated minimum to zmin
-    z[z < zmin] = zmin
-    
-    return x, y, z, zmin
-
-if __name__ == '__main__':
-    output_filename = 'terrain.txt'
-
-    with open(output_filename, 'w') as file_handle:
-        print("&HEAD CHID='TERRAIN_INPUT', TITLE='Terrain Obstacles' /", file=file_handle)
-        print("Starting terrain generation...", file=file_handle)
-        
-        # Define resolution cases for the multi-resolution domain
-        # Ensure you have files named terrain_30m.nc, terrain_10m.nc, etc.
-        resolution_cases = [
-            {'resolution': 30, 'lower_limit': 400, 'upper_limit': None}, # Outermost ring
-            {'resolution': 10, 'lower_limit': 130, 'upper_limit': 420}, # Middle ring
-            {'resolution': 5, 'lower_limit': 44, 'upper_limit': 140},   # Inner ring
-            {'resolution': 2, 'lower_limit': None, 'upper_limit': 48},  # Center zone (highest resolution)
-        ]
-        
-        combined_zmin = np.inf
-        mock_data = {}
-
-        # First pass to find the true lowest elevation across all files
-        for case in resolution_cases:
-            res = case['resolution']
-            try:
-                x, y, z, zmin = read_terrain_files(res)
-                combined_zmin = min(combined_zmin, zmin)
-                mock_data[res] = {'x': x, 'y': y, 'z': z}
-            except FileNotFoundError:
-                print(f"Error: terrain_{res}m.nc not found. Skipping this resolution.", file=file_handle)
-
-        # Second pass to write the FDS cards using the globally consistent zmin
-        for case in resolution_cases:
-            res = case['resolution']
-            if res in mock_data:
-                data = mock_data[res]
-                write_terrain(data['x'], data['y'], data['z'], combined_zmin, case['lower_limit'], case['upper_limit'], file_handle)
-
-        print("\nTerrain generation complete. Check 'terrain.txt' for output.", file=file_handle)
+```bash
+pdal pipeline pipeline.json          # produces output_dsm.tif at 1 m
+gdalwarp -tr 2 2 -r lanczos output_dsm.tif terrain_2m.tif   # resample to 2 m
 ```
-**Example from the Script**
 
-In the example resolution_cases, the limits are structured to form continuous, non-overlapping rings:
-| Resolution	 | Zone Type | lower_limit | upper_limit | Resulting zone | 
-| :---: | :--- | :--- |:--- |:--- |
-| 2 m	| Center	| None	| 48	| Everything from the center up to ±48 m.|
-| 5 m	| Annular  Ring	| 44	| 140	| Everything between ±44 m and ±140 m.|
-| 10 m |	Annular  Ring	| 130	| 420	|Everything between ±130 m and ±420 m.|
-| 30 m |	Outer  Ring	| 400	| None	|Everything from ±400 m outward.|
+The resulting `.tif` file is passed directly to this script via `--local-tif`.
+No reprojection or renaming is required — the script reads the CRS from the
+file metadata and handles all coordinate transformations internally.
 
-The crucial design point is that the limits must slightly overlap or butt-up against each other (e.g., 2 m ends at 48, 5 m starts at 44) to ensure all grid points are covered and to manage the transition zones between meshes effectively.
+---
 
-Save the code above as a Python file (e.g., `generate_terrain_fds.py`) and run it to create the `terrain.txt` file, which can then be included in your main FDS input file.
+## Requirements
+
+```bash
+pip install numpy scipy pyproj gdal
+```
+
+For SRTM1 auto-download, the `elevation` package and GDAL command-line tools
+are also required:
+
+```bash
+pip install elevation
+```
+
+---
+
+## Usage
+
+### As a standalone CLI
+
+**Using a mesh file to derive domain and resolution automatically:**
+```bash
+python srtm_to_fds.py 49.583 18.441 --mesh-file mesh.txt -o terrain.txt
+```
+
+**Using a manual domain size:**
+```bash
+python srtm_to_fds.py 49.583 18.441 --size 5670 -o terrain.txt
+```
+
+**With a local high-resolution GeoTIFF:**
+```bash
+python srtm_to_fds.py 49.583 18.441 --mesh-file mesh.txt --local-tif lidar.tif -o terrain.txt
+```
+
+### As an imported module
+
+```python
+from srtm_to_fds import get_terrain, parse_mesh_file
+
+domain_size, terrain_resolutions = parse_mesh_file("mesh.txt")
+
+get_terrain(
+    lat         = 49.583,
+    lon         = 18.441,
+    size_m      = domain_size,
+    output_file = "terrain.txt",
+    resolutions = terrain_resolutions,
+    local_tif   = None,        # or "lidar.tif" for high-res local data
+)
+```
+
+---
+
+## CLI arguments
+
+| Argument | Required | Description |
+|---|---|---|
+| `lat` | Yes | Latitude of the domain centre in decimal degrees |
+| `lon` | Yes | Longitude of the domain centre in decimal degrees |
+| `--mesh-file` / `-m` | One of these two | Path to an FDS `mesh.txt` file — domain size and resolution tiers are derived automatically |
+| `--size` | One of these two | Domain side length in metres — used only when no mesh file is provided; resolution tiers fall back to script defaults |
+| `--local-tif` | No | Path to a local high-resolution `.tif` file. Used for resolution tiers ≤ 30 m when provided; coarser tiers still use SRTM1 |
+| `--output` / `-o` | No | Output file path (default: `terrain.txt`) |
+| `--cache-dir` | No | Directory for the elevation package's SRTM tile cache |
+
+---
+
+## How resolution tiers work
+
+The domain is divided into concentric hollow square rings, each served by a
+different resolution. Every `&OBST` card is written only if its grid cell falls
+within the ring assigned to that resolution — neither inside the inner boundary
+nor outside the outer boundary.
+
+| Parameter | Meaning |
+|---|---|
+| `lower_limit` | Half-width of the inner exclusion zone. Grid cells closer to the origin than this belong to a finer ring. `None` means no inner hole — this tier covers the centre. |
+| `upper_limit` | Half-width of the outer clipping boundary. Grid cells further from the origin than this belong to a coarser ring. `None` means no outer cap — this tier covers everything outward. |
+
+The limits are checked against both X and Y independently using a square
+(Chebyshev) metric, consistent with the square mesh topology used by FDS.
+
+### Derived from mesh file
+
+When `--mesh-file` is supplied, `parse_mesh_file()` reads the `&MESH` cards
+and reconstructs the resolution tiers automatically by grouping meshes by
+their computed cell size and measuring the spatial extent of each group. This
+ensures the terrain rings align exactly with the mesh resolution transitions.
+
+### Default fallback (no mesh file)
+
+When only `--size` is given, four default tiers are used:
+
+| Resolution | Lower limit | Upper limit |
+|---|---|---|
+| 30 m | 90% of half-domain | None (outermost) |
+| 10 m | 30% of half-domain | 95% of half-domain |
+| 5 m | 10% of half-domain | 33% of half-domain |
+| 2 m | None (centre) | 11% of half-domain |
+
+---
+
+## Output format
+
+`terrain.txt` contains a comment header followed by `&OBST` namelists grouped
+by resolution tier:
+
+```
+! Terrain generated by srtm_to_fds.py
+! Centre: lat=49.583, lon=18.441  |  Domain: 5670 m
+! zmin (floor) = 247.00 m
+
+Terrain 27.00 m
+&OBST XB=-2835.00,-2808.00,-2835.00,-2808.00,247.00,312.45/
+&OBST XB=-2808.00,-2781.00,-2835.00,-2808.00,247.00,309.10/
+...
+
+Terrain 9.00 m
+&OBST XB=-1215.00,-1206.00,-1215.00,-1206.00,247.00,298.70/
+...
+```
+
+Each `&OBST` block spans one grid cell in X and Y, from `zmin` (the common
+floor elevation) up to the terrain surface elevation at that cell. The floor
+`zmin` is the second-lowest unique elevation found across all resolution tiers,
+which avoids using an outlier minimum while still grounding the terrain.
+
+---
+
+## Coordinate system
+
+The source point (`lat`, `lon`) is projected to UTM and used as the origin
+`(0, 0)` of the FDS domain. All `&OBST` coordinates are in metres relative
+to this origin, consistent with the mesh generator and `build_fds.py`.
+
+UTM zone is determined automatically from the longitude. Hemisphere
+(north/south) is determined from the latitude.
+
+---
+
+## Integration with build_fds.py
+
+When called from `build_fds.py`, all inputs are derived automatically:
+
+- `lat` and `lon` come from the shared `LAT` / `LON` parameter block
+- `domain_size` and `terrain_resolutions` come from `parse_mesh_file("mesh.txt")`,
+  which is called immediately after the mesh generator writes its output
+- `local_tif` is set by the `LOCAL_TIF` parameter (`None` by default)
+
+No manual size or resolution configuration is needed — the terrain always
+matches the mesh exactly.
+
+---
+
+## Notes
+
+- The output file is always overwritten on each run.
+- SRTM1 tiles are cached by the `elevation` package. Subsequent runs over the
+  same area reuse the cached tiles and do not re-download.
+- NaN gaps in the elevation data (e.g. at the edge of a tile) are filled using
+  nearest-neighbour propagation before writing.
+- Local GeoTIFF files can be in any projected or geographic CRS — the script
+  reads the CRS from the file metadata and reprojects to UTM automatically.
+- For LiDAR data preparation (`.las` / `.laz` → `.tif`) or SRTM1 manual
+  download and conversion steps, refer to the associated preprocessing
+  documentation.

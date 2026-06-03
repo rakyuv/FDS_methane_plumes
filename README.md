@@ -3,10 +3,6 @@
 
 This repository contains everything needed to simulate a CH₄ plume using [Fire Dynamics Simulator (FDS)](https://pages.nist.gov/fds-smv/). The workflow is modular: each preprocessing step lives in its own script, all feeding into a single main code called build_fds.py that generates the FDS input file from a shared parameter file.
 
-If you use this tutorial as part of a publication, please cite:
-
-> Yuvaraj, R., Lauvaux, T., Abdallah, C., Ciais, P., Akani Guery, J., Bonne, J.L., Groshenry, A., Hoang, N.M. and Joly, L., 2026. High-Resolution Modeling of Methane Plumes: Validation and Sensitivity Experiments to Explore Emission Quantification Approaches. *Environmental Science & Technology*.
-
 # build_fds_inputFile.py
 
 Automated FDS (Fire Dynamics Simulator) input file generator for atmospheric wind simulations over real terrain. Orchestrates three specialist modules to

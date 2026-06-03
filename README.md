@@ -180,3 +180,7 @@ The `&WIND` namelist references all three ramps and sets `SPEED` and
   step will fail. Pre-download SRTM tiles or provide a local GeoTIFF.
 - All intermediate files (`mesh.txt`, `terrain.txt`, ERA5 NetCDF and RAMP files)
   are kept after the run and can be inspected independently.
+
+## Acknowledgements
+
+The core logic and algorithms of this repository were designed by the author. Generative AI tools (Gemini and Claude) were utilized to assist with Pythonic code optimization, formatting, and documentation.

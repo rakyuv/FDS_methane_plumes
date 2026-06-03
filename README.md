@@ -1,6 +1,6 @@
-FDS: CH₄ simulations
+# FDS: CH₄ simulations
 
-This repository contains everything needed to simulate a CH₄ plume using [Fire Dynamics Simulator (FDS)](https://pages.nist.gov/fds-smv/). The workflow is modular: each preprocessing step lives in its own script, all feeding into a single main code that generates the FDS input file from a shared parameter file.
+This repository contains everything needed to simulate a CH₄ plume using [Fire Dynamics Simulator (FDS)](https://pages.nist.gov/fds-smv/). The workflow is modular: each preprocessing step lives in its own script, all feeding into a single main code called build_fds.py that generates the FDS input file from a shared parameter file.
 
 If you use this tutorial as part of a publication, please cite:
 
@@ -8,8 +8,7 @@ If you use this tutorial as part of a publication, please cite:
 
 # build_fds.py
 
-Automated FDS (Fire Dynamics Simulator) input file generator for atmospheric
-wind simulations over real terrain. Orchestrates three specialist modules to
+Automated FDS (Fire Dynamics Simulator) input file generator for atmospheric wind simulations over real terrain. Orchestrates three specialist modules to
 produce a complete, ready-to-run `inputfile.fds` from a single parameter block.
 
 ---

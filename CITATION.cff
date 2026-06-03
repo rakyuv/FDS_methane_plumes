@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite it as below."
+authors:
+- family-names: "YUVARAJ"
+  given-names: "RAKESH"
+  orcid: "https://orcid.org/0009-0005-9666-5983"
+title: "FDS_methane_plumes"
+version: 1.0.0
+doi: 10.5281/zenodo.1234
+date-released: 2026-06-03
+url: "https://github.com/rakyuv/FDS_methane_plumes"

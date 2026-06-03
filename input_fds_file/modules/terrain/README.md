@@ -1,4 +1,4 @@
-# srtm_to_fds.py
+# elevation_to_fds.py
 
 Downloads or reads elevation data and converts it into FDS `&OBST` terrain
 cards for multi-resolution domains. Designed to be used either as a standalone

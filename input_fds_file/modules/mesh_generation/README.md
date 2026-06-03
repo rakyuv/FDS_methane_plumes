@@ -1,192 +1,192 @@
-# FDS Mesh Generator
+# fds_mesh_generator.py
 
-A Python module for generating multi-resolution **Fire Dynamics Simulator (FDS)** mesh configurations. It produces nested mesh domains with geometrically increasing cell sizes — ideal for large-scale fire or atmospheric dispersion simulations where fine resolution is needed near the source and coarser resolution suffices at the boundaries.
-
-The module writes its output to **`mesh.txt`**, which is intended to be consumed by a separate script that assembles the full FDS input file.
-
----
-
-## Features
-
-- **Importable module** — use `MeshConfig` and `run()` directly from any other Python script
-- **Multi-resolution nested meshes** — generates concentric mesh domains, each at 3× the resolution of the previous
-- **Non-overlapping boundary strips** — top, bottom, left, and right boundary meshes are computed explicitly to avoid mesh overlap
-- **Z-domain expansion** — interior vertical domain grows with each resolution step
-- **Constant-resolution boundary layers** — optional outer layers at fixed resolution for domain padding
-- **MPI process assignment** — automatically assigns `MPI_PROCESS` indices based on a configurable division factor
-- **Mesh alignment checking** — outputs `CHECK_MESH_ALIGNMENT=T` on every mesh line
+Generates FDS `&MESH` configurations with nested, multi-resolution domains
+centred on the origin. Designed to be used either as a standalone CLI tool
+or imported as a module by `build_fds.py`.
 
 ---
 
-## Requirements
+## Concept
 
-- Python 3.7+
-- NumPy
+FDS simulations over large outdoor domains benefit from variable resolution:
+fine cells near the area of interest, coarser cells further out. This script
+builds that structure automatically as a set of concentric hollow square rings,
+each three times coarser than the one inside it, plus optional constant-resolution
+outer boundary layers.
 
-Install dependencies:
-
-```bash
-pip install numpy
 ```
+┌─────────────────────────────┐
+│  27 m  (coarsest, layer 2)  │
+│  ┌───────────────────────┐  │
+│  │  27 m  (layer 1)      │  │
+│  │  ┌─────────────────┐  │  │
+│  │  │  27 m  (step 4) │  │  │
+│  │  │  ┌───────────┐  │  │  │
+│  │  │  │  9 m      │  │  │  │
+│  │  │  │  ┌─────┐  │  │  │  │
+│  │  │  │  │ 3 m │  │  │  │  │
+│  │  │  │  │ ┌─┐ │  │  │  │  │
+│  │  │  │  │ │1m│ │  │  │  │  │
+│  │  │  │  │ └─┘ │  │  │  │  │
+│  │  │  │  └─────┘  │  │  │  │
+│  │  │  └───────────┘  │  │  │
+│  │  └─────────────────┘  │  │
+│  └───────────────────────┘  │
+└─────────────────────────────┘
+```
+
+Each resolution ring is a set of `&MESH` blocks that tile the annular region
+between the inner and outer domain sizes for that step. The vertical extent
+also grows with each resolution step.
 
 ---
 
 ## Usage
 
-### As a module (recommended)
+### As a standalone CLI
 
-Import `MeshConfig` and `run()` from your FDS builder or any other script:
+```bash
+python fds_mesh_generator.py --res 1.0 --steps 4 --z_min 247 --mpi 1 --layers 2
+```
+
+Output is written to `mesh.txt` in the current directory.
+
+### As an imported module
 
 ```python
 from fds_mesh_generator import MeshConfig, run
 
-# Override only the parameters you need; all others fall back to defaults
-config = MeshConfig(res=0.5, steps=3, z_min=300, mpi=4, layers=2)
-run(config)
-# → writes mesh.txt
+config = MeshConfig(res=1.0, steps=4, z_min=247, mpi=1, layers=2)
+result = run(config)
+
+# result is a dict:
+# {
+#   "output" : "mesh.txt",
+#   "x_min"  : -2835.0,
+#   "x_max"  :  2835.0,
+#   "y_min"  : -2835.0,
+#   "y_max"  :  2835.0,
+#   "z_min"  :  247.0,
+#   "z_max"  :  337.0,
+# }
 ```
 
-`run()` returns the path of the written file (`config.output`, default `"mesh.txt"`), so you can chain it directly into your FDS file builder:
+The returned dict gives the full domain extents, which `build_fds.py` uses
+to set `&SLCF` bounds and other domain-wide namelists.
 
-```python
-from fds_mesh_generator import MeshConfig, run
+---
 
-mesh_path = run(MeshConfig(res=1.0, steps=4))
+## Parameters
 
-with open(mesh_path) as f:
-    mesh_block = f.read()
+### `MeshConfig` dataclass
 
-# ... assemble the rest of the FDS input file
-```
-
-### As a standalone CLI script
-
-```bash
-python fds_mesh_generator.py [OPTIONS]
-```
-
-#### Options
-
-| Argument | Type | Default | Description |
+| Parameter | Type | Default | Description |
 |---|---|---|---|
-| `--res` | float | `1.0` | Starting (finest) resolution in metres |
-| `--steps` | int | `4` | Number of resolution steps |
-| `--z_min` | int | `247` | Minimum Z coordinate of the domain |
-| `--mpi` | int | `1` | MPI division factor (meshes per MPI process) |
-| `--layers` | int | `2` | Number of constant-resolution boundary layers |
-| `--output` | str | `mesh.txt` | Output file path |
+| `res` | `float` | `1.0` | Finest cell size in metres at the domain centre |
+| `steps` | `int` | `4` | Number of resolution jumps outward (each step triples `res`) |
+| `z_min` | `int` | `247` | Lowest Z coordinate of the domain (metres above sea level) |
+| `mpi` | `int` | `1` | Number of meshes assigned per MPI process |
+| `layers` | `int` | `2` | Number of constant-resolution outer boundary rings at the coarsest level |
+| `ijk` | `tuple` | `(30, 30, 30)` | Cell counts per mesh block in I, J, K |
+| `output` | `str` | `"mesh.txt"` | Output file path |
 
-#### Examples
+### CLI flags
 
-Generate a default 4-step mesh starting at 1 m resolution:
-
-```bash
-python fds_mesh_generator.py
-```
-
-Generate a fine 0.5 m mesh with 3 resolution steps and 4 MPI processes:
-
-```bash
-python fds_mesh_generator.py --res 0.5 --steps 3 --mpi 4
-```
-
-Generate a coarser mesh with extra boundary padding:
-
-```bash
-python fds_mesh_generator.py --res 2.0 --steps 3 --layers 4 --z_min 300
-```
+| Flag | Default | Description |
+|---|---|---|
+| `--res` | `1.0` | Starting resolution in metres |
+| `--steps` | `4` | Number of resolution steps |
+| `--z_min` | `247` | Minimum Z coordinate |
+| `--mpi` | `1` | MPI division factor |
+| `--layers` | `2` | Number of constant boundary layers |
+| `--output` | `mesh.txt` | Output file path |
 
 ---
 
-## Output
+## How the domain is built
 
-Both usage modes write to **`mesh.txt`** (or the path set in `MeshConfig.output`). This file is not a complete FDS input — it contains only the `&MESH` block, ready to be embedded into a larger FDS file by your builder script.
+### Resolution steps
 
-Each line follows the FDS `&MESH` namelist format:
+Starting from `res`, each step outward triples the cell size:
 
-```
-&MESH ID = 'mesh0', IJK = 30, 30, 30, XB = -45.00, 45.00, -45.00, 45.00, 247.00, 1147.00, MPI_PROCESS=0, CHECK_MESH_ALIGNMENT=T/
-```
-
-Comment lines (`#`) and section separators are inserted to label each resolution level and boundary strip for readability.
-
----
-
-## How It Works
-
-### Resolution Steps
-
-Each step multiplies the cell size by 3. For `--res 1.0 --steps 4`, the resolutions are:
-
-```
-Step 0:  1 m  (finest, central domain)
-Step 1:  3 m  (surrounding boundary ring)
-Step 2:  9 m
-Step 3: 27 m  (coarsest)
-```
-
-### Domain Sizing
-
-The horizontal domain size at each step is:
-
-```
-domain_size = resolution × domain_factor (default 90)
-```
-
-So a 1 m resolution produces a 90 m × 90 m central domain; a 3 m resolution produces a 270 m × 270 m outer ring; and so on.
-
-### Mesh Layout (single step)
-
-```
-┌─────────────────────────────────┐
-│         Top boundary            │
-├──────┬──────────────────┬───────┤
-│      │                  │       │
-│ Left │  Previous domain │ Right │
-│      │                  │       │
-├──────┴──────────────────┴───────┤
-│        Bottom boundary          │
-└─────────────────────────────────┘
-```
-
-### Constant Boundary Layers
-
-After the resolution steps, additional layers of uniform-resolution meshes can be added around the outermost domain using `--layers` (or `MeshConfig.layers`). Each layer extends the domain by one mesh cell width in all four horizontal directions.
-
----
-
-## API Reference
-
-### `MeshConfig`
-
-A dataclass holding all generation parameters. All fields have defaults so you only need to specify what differs from the baseline.
-
-| Field | Type | Default | Description |
+| Step | Resolution | Domain half-width | Z extent |
 |---|---|---|---|
-| `res` | float | `1.0` | Starting (finest) resolution in metres |
-| `steps` | int | `4` | Number of resolution steps |
-| `z_min` | int | `247` | Minimum Z coordinate |
-| `mpi` | int | `1` | MPI division factor |
-| `layers` | int | `2` | Number of constant boundary layers |
-| `ijk` | tuple | `(30, 30, 30)` | Cell counts per mesh in I, J, K |
-| `output` | str | `"mesh.txt"` | Output file path |
+| 1 | `res × 1` | `res × 90 / 2` | `res × 30 × 3` |
+| 2 | `res × 3` | `res × 270 / 2` | `res × 90 × 3` |
+| 3 | `res × 9` | `res × 810 / 2` | `res × 270 × 3` |
+| 4 | `res × 27` | `res × 2430 / 2` | `res × 810 × 3` |
 
-### `run(config: MeshConfig = None) -> str`
+With `res = 1.0` and `steps = 4`, the outermost resolution step reaches
+±1215 m in X and Y.
 
-Executes the full mesh generation pipeline and writes the result to `config.output`. Returns the output file path. If `config` is omitted, all defaults are used.
+The domain factor of 90 means each mesh block covers exactly `res × 90` metres
+in X and Y with the default `ijk = (30, 30, 30)`, giving 3 cell-widths of 30
+cells each.
 
-### `FDSMeshGenerator(config: MeshConfig)`
+### Constant boundary layers
 
-The underlying class, if you need finer control. Maintains a running `current_mesh_id` counter across all calls to ensure globally unique mesh IDs.
+After the last resolution step, `layers` additional rings are added at the same
+(coarsest) resolution, each one mesh-block wide (`final_res × ijk[0]`). These
+expand the domain further without introducing a new resolution tier and are
+useful for absorbing boundary effects.
 
-| Method | Description |
-|---|---|
-| `generate_fds_meshes(fh, resolution, x_min, x_max, y_min, y_max, z_min, z_max)` | Tiles a rectangular region with `&MESH` lines |
-| `generate_all_resolutions(fh)` | Builds the full nested multi-resolution domain |
-| `generate_constant_resolution_boundaries(fh, resolution, final_domain_size)` | Appends constant-resolution outer rings |
+With `res = 1.0`, `steps = 4`, and `layers = 2`:
+- Coarsest resolution: 27 m
+- Each boundary layer width: 27 × 30 = 810 m
+- Total domain half-width after layers: 1215 + 810 + 810 = **2835 m**
+
+### Vertical extent
+
+The vertical domain grows with each step because `dz = current_res × ijk[2]`
+and each step covers `3 × dz` vertically. With `res = 1.0` and `steps = 4`:
+
+| Step | `dz` | Z height above `z_min` |
+|---|---|---|
+| 1 | 30 m | 90 m |
+| 2 | 90 m | 270 m |
+| 3 | 270 m | 810 m |
+| 4 | 810 m | **2430 m** |
+
+### MPI assignment
+
+Each mesh block is assigned an `MPI_PROCESS` index equal to
+`mesh_id // mpi`. With `mpi = 1` every mesh runs on a separate process.
+Increase `mpi` to batch multiple meshes onto the same process when the
+total mesh count exceeds your available MPI ranks.
 
 ---
 
-## License
+## Output format
 
-MIT License. See `LICENSE` for details.
+`mesh.txt` contains raw FDS `&MESH` namelists, one per line, with comment
+headers marking each resolution tier:
+
+```
+# 1 m X/Y Resolution
+&MESH ID = 'mesh0', IJK = 30, 30, 30, XB = -45.00, -15.00, -45.00, -15.00, 247.00, 277.00, MPI_PROCESS=0, CHECK_MESH_ALIGNMENT=T/
+...
+
+----------------------------------
+
+# 3 m X/Y Resolution
+# Top Boundary
+&MESH ID = 'mesh27', IJK = 30, 30, 30, XB = -135.00, -45.00, 45.00, 135.00, 247.00, 337.00, MPI_PROCESS=27, CHECK_MESH_ALIGNMENT=T/
+...
+```
+
+`CHECK_MESH_ALIGNMENT=T` is written on every line so FDS validates that
+adjacent meshes share coincident cell boundaries at resolution transitions.
+
+---
+
+## Notes
+
+- All meshes are centred on the origin `(0, 0)`. The simulation source point
+  should be placed at the origin in the FDS input file.
+- `ijk = (30, 30, 30)` is the recommended default. Changing it will rescale
+  the physical size of every mesh block and alter the domain extents
+  proportionally.
+- The output file is always overwritten on each run.
+- When used via `build_fds.py`, the `output` field defaults to `"mesh.txt"`
+  and is written to the current working directory alongside all other
+  generated files.

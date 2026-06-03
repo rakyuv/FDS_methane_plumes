@@ -6,159 +6,181 @@ If you use this tutorial as part of a publication, please cite:
 
 > Yuvaraj, R., Lauvaux, T., Abdallah, C., Ciais, P., Akani Guery, J., Bonne, J.L., Groshenry, A., Hoang, N.M. and Joly, L., 2026. High-Resolution Modeling of Methane Plumes: Validation and Sensitivity Experiments to Explore Emission Quantification Approaches. *Environmental Science & Technology*.
 
-## Repository structure
-```
-.
-├── params.txt                 # All user-defined parameters (edit this before running)
-├── input_fds_file.py          # Main script — generates the FDS input file
-├── era5_download.py           # Module: download and convert ERA5 meteorological data
-├── terrain_fetch.py           # Module: fetch and convert terrain topology data
-├── postprocessing/
-│   └── slcf_to_netcdf.py      # Convert FDS .slcf output files to NetCDF
-└── README.md
+# build_fds.py
 
-```
-
-## Workflow overview
-```
-params.txt
-    │
-    ▼
-input_fds_file.py
-    ├── era5_download()    →  met_surface.txt, met_pressure.txt
-    ├── terrain_fetch()    →  terrain.txt
-    └── [ future modules ]
-    │
-    ▼
- simulation.fds
-    │
-    ▼
- FDS run  →  *.sf              # FDS saves slices in SLCF format
-    │
-    ▼
- slcf_to_netcdf.py  →  *.nc    # .sf files can easily be converted to .nc files
-```
-
-
-## Quick start
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/<your-username>/<repo-name>.git
-cd <repo-name>
-```
-
-### 2. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-> Python ≥ 3.9 recommended. Key dependencies: `cdsapi`, `cfgrib`, `xarray`, `numpy`, `rasterio`.
-
-### 3. Edit `params.txt`
-
-All simulation parameters are centralized in `params.txt`. Open it and set at minimum:
-
-```
-# Domain
-lon_min        = 2.5
-lon_max        = 3.0
-lat_min        = 48.5
-lat_max        = 49.0
-start_date     = 2024-06-01
-start_time     = 12:00:00
-sim_duration_s = 3600
-
-# Source
-emission_rate_kg_s = 0.05
-source_lon         = 2.75
-source_lat         = 48.75
-source_height_m    = 1.0
-
-# Resolution
-dx_m = 5
-dy_m = 5
-dz_m = 5
-```
-
-A full annotated description of every parameter is in [`params.txt`](params.txt).
-### 4. Generate the FDS input file
-
-```bash
-python input_fds_file.py
-```
-
-This calls all preprocessing modules internally — ERA5 download, terrain fetch, and any others — and produces `simulation.fds` directly. No need to run the modules separately.
-
-> You need a [CDS API key](https://cds.climate.copernicus.eu/api-how-to) configured in `~/.cdsapirc` for the ERA5 download step.
-> Module descriptions table — update the description column to reflect that these are called internally, not run standalone:
-
-| Script | Role | Inputs | Outputs |
-|---|---|---|---|
-| `era5_download.py` | Called by main — downloads ERA5 met fields | `params.txt` | `met_surface.txt`, `met_pressure.txt` |
-| `terrain_fetch.py` | Called by main — fetches and converts DEM | `params.txt` | `terrain.txt` |
-| `input_fds_file.py` | **Main script** — calls all modules and writes FDS input | `params.txt` | `simulation.fds` |
-| `slcf_to_netcdf.py` | Postprocessing — converts FDS slice output to NetCDF | `*.slcf` | `*.nc` |
-
-> All modules are imported and called automatically by `input_fds_file.py`. 
-> They can still be imported individually for debugging or development purposes.
-### 5. Generate the FDS input file
-
-```bash
-python input_fds_file.py
-```
-
-Reads `params.txt`, `met_surface.txt`, `met_pressure.txt`, and `terrain.txt` to produce `simulation.fds`.
-
-### 6. Run FDS
-
-```bash
-fds simulation.fds
-```
-
-Refer to the [FDS user guide](https://pages.nist.gov/fds-smv/) for parallelisation and HPC submission options.
-
-### 7. Postprocessing (convert `.slcf` to NetCDF)
-
-Two scripts are available depending on your simulation size and needs. See [`post_process/README.md`](post_process/README.md) for full details.
-
-**Full time series** — one or two spatial resolutions, shorter simulations:
-```bash
-python postprocessing/slcf_to_netcdf_all_time_steps.py
-```
-
-**Discrete time steps** — multiple spatial resolutions, large simulations:
-```bash
-python postprocessing/slcf_to_netcdf_discrete_time_steps.py
-```
-
-Override defaults via arguments if needed:
-```bash
-python postprocessing/slcf_to_netcdf_discrete_time_steps.py --resolutions 1 3 --target_res 1 --time_steps 0 100 200
-```
-
-Both scripts output NetCDF files organized as `variable(t, z, y, x)`, ready for analysis in Python or NCO/CDO.
+Automated FDS (Fire Dynamics Simulator) input file generator for atmospheric
+wind simulations over real terrain. Orchestrates three specialist modules to
+produce a complete, ready-to-run `inputfile.fds` from a single parameter block.
 
 ---
 
-## Module descriptions
+## Overview
 
-| Script | Role | Inputs | Outputs |
-|---|---|---|---|
-| `era5_download.py` | Download ERA5 met fields and format for FDS | `params.txt` | `met_surface.txt`, `met_pressure.txt` |
-| `terrain_fetch.py` | Fetch DEM and convert to FDS terrain format | `params.txt` | `terrain.txt` |
-| `input_fds_file.py` | Assemble and write the FDS input file | `params.txt` + all `.txt` above | `simulation.fds` |
-| `slcf_to_netcdf.py` | Convert FDS slice output to NetCDF | `*.slcf` | `*.nc` |
+`build_fds.py` is the single entry point for the whole pipeline. You edit the
+parameters block at the top, run the script, and get `inputfile.fds` out. The
+three modules it drives are:
+
+| Module | What it does | Output |
+|---|---|---|
+| `fds_mesh_generator.py` | Builds nested multi-resolution FDS mesh | `mesh.txt` |
+| `era5_downloader.py` | Downloads ERA5 wind & temperature profiles | `era5_fds_ramp_<date>_<hour>UTC.txt`, `era5_single_levels.nc`, `era5_pressure_levels.nc` |
+| `srtm_to_fds.py` | Downloads SRTM1 terrain or reads a local GeoTIFF | `terrain.txt` |
+
+All files are written to the working directory (wherever you run the script from).
 
 ---
+
+## Requirements
+
+```
+pip install cdsapi xarray netCDF4 numpy scipy pyproj elevation gdal
+```
+
+- A valid `~/.cdsapirc` file with your [CDS API key](https://cds.climate.copernicus.eu/api-how-to)
+- GDAL command-line tools available on your system
+- The four Python files in the same directory:
+  - `build_fds.py`
+  - `fds_mesh_generator.py`
+  - `era5_downloader.py`
+  - `srtm_to_fds.py`
+
+---
+
+## Usage
+
+Edit the parameters block at the top of `build_fds.py`, then run:
+
+```bash
+python build_fds.py
+```
+
+---
+
+## Parameters
+
+All parameters live in the top section of `build_fds.py`. Nothing else needs
+to be edited.
+
+### Simulation identity
+
+| Parameter | Type | Description |
+|---|---|---|
+| `CHID` | `str` | FDS character ID, used as the filename stem for all FDS outputs |
+| `LAT` | `float` | Latitude of the domain centre in decimal degrees |
+| `LON` | `float` | Longitude of the domain centre in decimal degrees |
+| `NORTH_BEARING` | `int` | Rotation of the domain relative to north (degrees) |
+| `LEVEL_SET_MODE` | `int` | FDS wind profile mode — `3` follows terrain |
+| `THICKEN_OBSTRUCTIONS` | `str` | FDS flag, keep as `T` |
+
+### Time
+
+| Parameter | Type | Description |
+|---|---|---|
+| `START_DATE` | `str` | Simulation start date, `YYYY-MM-DD` |
+| `START_TIME` | `str` | Simulation start time (UTC), `HH:MM:SS` |
+| `SIM_DURATION_S` | `int` | Simulation duration in seconds |
+
+### Mesh resolution
+
+| Parameter | Type | Description |
+|---|---|---|
+| `HIGHEST_RESOLUTION` | `int` | Finest cell size in metres at the domain centre |
+| `STEPS` | `int` | Number of resolution jumps outward (each step triples the cell size) |
+| `LAYERS` | `int` | Number of constant-resolution outer boundary rings at the coarsest level |
+| `Z_MIN` | `int` | Lowest Z coordinate in the domain (metres above sea level) |
+| `MPI` | `int` | Number of meshes handled per MPI process |
+
+### Boundary conditions
+
+| Parameter | Type | Description |
+|---|---|---|
+| `LATERAL_SURF_ID` | `str` | Surface applied to XMIN, XMAX, YMIN, YMAX vents |
+| `GROUND_SURF_ID` | `str` | Surface applied to the ZMIN vent and `&SURF` ground definition |
+| `TOP_SURF_ID` | `str` | Surface applied to the ZMAX vent |
+
+### Slice files
+
+```python
+SLCF_QUANTITIES = [
+    {"QUANTITY": "TEMPERATURE",     "VECTOR": ".TRUE."},
+    {"QUANTITY": "U-VELOCITY"},
+    {"QUANTITY": "V-VELOCITY"},
+    {"QUANTITY": "W-VELOCITY"},
+    {"QUANTITY": "PRESSURE",        "VECTOR": ".TRUE."},
+    {"QUANTITY": "VOLUME FRACTION", "SPEC_ID": "'METHANE'"},
+]
+```
+
+Comment out any entry you do not need, or add new ones following the same
+dictionary structure. All entries share the same `XB` spanning the full domain
+extent derived automatically from the mesh.
+
+### Terrain
+
+| Parameter | Type | Description |
+|---|---|---|
+| `TERRAIN_FILE` | `str` | Output path for the terrain obstruction file |
+| `LOCAL_TIF` | `str` or `None` | Path to a local high-resolution GeoTIFF. If `None`, SRTM1 data is downloaded automatically. Used for resolutions ≤ 30 m when provided |
+
+---
+
+## Pipeline steps
+
+```
+build_fds.py
+│
+├── Step 2   fds_mesh_generator.py  →  mesh.txt
+│            Returns domain extents (x/y/z min-max) for use downstream
+│
+├── Step 2b  era5_downloader.py     →  era5_fds_ramp_<date>_<hour>UTC.txt
+│            Returns T_2m, skin temperature, surface pressure
+│
+├── Step 2c  srtm_to_fds.py         →  terrain.txt
+│            Reads mesh.txt to derive domain size and resolution tiers
+│
+└── Step 3   Assembles inputfile.fds from all of the above
+```
+
+### Section order in `inputfile.fds`
+
+1. `&HEAD` — simulation identity
+2. `&TIME` — start date/time and duration
+3. `&MISC` — TMPA (T_2m), P_INF (surface pressure), wind mode flags
+4. `&GEOM` — geolocation
+5. `&SURF` — ground surface with TMP_FRONT (skin temperature) and soil properties
+6. `&WIND` + `&RAMP` — ERA5 wind speed, direction and temperature profiles
+7. `&VENT` — boundary conditions on all six domain faces
+8. `&SLCF` — slice file outputs
+9. `&OBST` — terrain obstructions
+10. `&DUMP` — output controls
+11. `&MESH` — all mesh definitions
+12. `&TAIL`
+
+---
+
+## ERA5 wind profile
+
+The ERA5 module produces three `&RAMP` profiles:
+
+- **`spd`** — wind speed vs height, anchored at `Z_MIN + 10` m using the ERA5
+  10 m wind, then pressure-level values above. Sorted to ensure monotonic Z.
+- **`dir`** — wind direction vs height, same anchoring and sorting as speed.
+- **`tmp_profile`** — temperature ratio `T(z) / T_2m` from pressure levels only
+  (no fabricated surface anchor point).
+
+The `&WIND` namelist references all three ramps and sets `SPEED` and
+`DIRECTION` to the 10 m ERA5 values.
+
+---
+
 ## Notes
 
-- All modules are designed to be run independently for testing before calling the main script. They are imported and called automatically by `input_fds_file.py`. 
-- `params.txt` is the single source of truth — no hardcoded paths or values should appear elsewhere.
-- Postprocessing (NetCDF conversion) is documented in [`postprocessing/README.md`](postprocessing/README.md) *(to be added)*.
-
----
-
-## License
+- `Z_MIN` and `START_DATE`/`START_TIME` are shared automatically between the
+  mesh generator, ERA5 downloader and terrain processor — no duplication.
+- The domain extents used in `&SLCF` are derived directly from the mesh output,
+  not from the input parameters, so they always reflect the actual generated
+  domain.
+- If `LOCAL_TIF = None` and no internet connection is available, the terrain
+  step will fail. Pre-download SRTM tiles or provide a local GeoTIFF.
+- All intermediate files (`mesh.txt`, `terrain.txt`, ERA5 NetCDF and RAMP files)
+  are kept after the run and can be inspected independently.

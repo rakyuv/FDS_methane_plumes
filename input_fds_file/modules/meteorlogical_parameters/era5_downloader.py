@@ -103,6 +103,9 @@ def _geopotential_to_altitude(phi):
 def _wind_speed(u, v):
     return np.sqrt(u ** 2 + v ** 2)
 
+def _wind_direction(u, v):
+    """Meteorological wind direction in degrees (direction wind is coming FROM)."""
+    return np.degrees(np.arctan2(u, v)) % 360
 
 # ---------------------------------------------------------------------------
 # Internal download helpers
@@ -176,22 +179,31 @@ def _download_pressure_levels(c, p, out_dir):
     print(f"  ✓ {path}")
     return path
 
-
-def _write_fds_ramp(pl_nc, sl_nc, p, out_dir):
-    """Build FDS RAMP text file from the two NetCDF files."""
+def _write_fds_ramp(pl_nc, sl_nc, p, out_dir, z_min):
     print("[3/3] Generating FDS RAMP profile …")
 
-    ds_pl = xr.open_dataset(pl_nc).sel(
-        latitude=p["lat"], longitude=p["lon"], method="nearest"
-    ).isel(time=0)
+    ds_pl = xr.open_dataset(pl_nc)
+    ds_sl = xr.open_dataset(sl_nc)
 
-    ds_sl = xr.open_dataset(sl_nc).sel(
-        latitude=p["lat"], longitude=p["lon"], method="nearest"
-    ).isel(time=0)
+    rename_dict = {}
+    for old_dim, new_dim in [('valid_time', 'time'), ('lat', 'latitude'), ('lon', 'longitude')]:
+        if old_dim in ds_pl.dims:
+            rename_dict[old_dim] = new_dim
+    if rename_dict:
+        ds_pl = ds_pl.rename(rename_dict)
+        ds_sl = ds_sl.rename(rename_dict)
 
-    # 2 m temperature for normalisation
-    t2m = float(ds_sl["t2m"].values)
-    print(f"  T_2m = {t2m:.2f} K  ({t2m - 273.15:.2f} °C)")
+    ds_pl = ds_pl.sel(latitude=p["lat"], longitude=p["lon"], method="nearest").isel(time=0)
+    ds_sl = ds_sl.sel(latitude=p["lat"], longitude=p["lon"], method="nearest").isel(time=0)
+
+    # Scalar surface quantities
+    t2m       = float(ds_sl["t2m"].values)
+    skin_temp = float(ds_sl["skt"].values)
+    surf_pres = float(ds_sl["sp"].values)
+
+    print(f"  T_2m        = {t2m:.2f} K  ({t2m - 273.15:.2f} °C)")
+    print(f"  Skin temp   = {skin_temp:.2f} K  ({skin_temp - 273.15:.2f} °C)")
+    print(f"  Surface pres= {surf_pres:.2f} Pa")
 
     # Pressure-level arrays
     phi   = ds_pl["z"].values.flatten()
@@ -199,59 +211,81 @@ def _write_fds_ramp(pl_nc, sl_nc, p, out_dir):
     v_arr = ds_pl["v"].values.flatten()
     t_arr = ds_pl["t"].values.flatten()
 
-    altitudes = _geopotential_to_altitude(phi)
-    speeds    = _wind_speed(u_arr, v_arr)
-    t_ratio   = t_arr / t2m
+    altitudes  = _geopotential_to_altitude(phi)
+    speeds     = _wind_speed(u_arr, v_arr)
+    directions = _wind_direction(u_arr, v_arr)
+    t_ratio    = t_arr / t2m
 
     # Sort bottom → top
-    idx       = np.argsort(altitudes)
-    altitudes = altitudes[idx]
-    speeds    = speeds[idx]
-    t_ratio   = t_ratio[idx]
+    idx        = np.argsort(altitudes)
+    altitudes  = altitudes[idx]
+    speeds     = speeds[idx]
+    directions = directions[idx]
+    t_ratio    = t_ratio[idx]
 
-    # 10 m wind for WIND namelist header
-    u10      = float(ds_sl["u10"].values)
-    v10      = float(ds_sl["v10"].values)
-    spd_10m  = float(_wind_speed(u10, v10))
-    wind_dir = float(np.degrees(np.arctan2(u10, v10)) % 360)
+    # 10 m wind anchored at z_min + 10
+    u10     = float(ds_sl["u10"].values)
+    v10     = float(ds_sl["v10"].values)
+    spd_10m = float(_wind_speed(u10, v10))
+    dir_10m = float(_wind_direction(u10, v10))
+    z_10m   = z_min + 10.0
 
-    ramp_path = os.path.join(
-        out_dir,
-        f"era5_fds_ramp_{p['date_str']}_{p['hour']:02d}UTC.txt",
-    )
+    # Speed and direction: insert 10 m point then re-sort
+    altitudes_sd = np.concatenate([[z_10m],   altitudes])
+    speeds       = np.concatenate([[spd_10m], speeds])
+    directions   = np.concatenate([[dir_10m], directions])
+
+    idx          = np.argsort(altitudes_sd)
+    altitudes_sd = altitudes_sd[idx]
+    speeds       = speeds[idx]
+    directions   = directions[idx]
+
+    # Temperature: pressure levels only, already sorted, no 10 m anchor needed
+
+    ramp_path = os.path.join(out_dir, f"era5_fds_ramp_{p['date_str']}_{p['hour']:02d}UTC.txt")
 
     with open(ramp_path, "w") as f:
         f.write(
             f"! ERA5 FDS Wind & Temperature Profile\n"
             f"! Date : {p['date_str']}  {p['hour']:02d}:00 UTC\n"
             f"! Lat  : {p['lat']:.4f}  Lon : {p['lon']:.4f}\n"
-            f"! T_2m : {t2m:.2f} K\n!\n"
+            f"! T_2m : {t2m:.2f} K  |  Skin T : {skin_temp:.2f} K  |  Pres : {surf_pres:.2f} Pa\n!\n"
         )
         f.write(
-            f"&WIND SPEED={spd_10m:.2f}., "
+            f"&WIND SPEED=1, "
             f"RAMP_SPEED_Z='spd', "
-            f"RAMP_TMP0_Z='T profile', "
-            f"DIRECTION={wind_dir:.1f}/\n"
-            f"!\n! ERA5 Velocities\n"
+            f"RAMP_DIRECTION_Z='dir', "
+            f"RAMP_TMP0_Z='tmp_profile', "
+            f"DIRECTION={dir_10m:.1f}/\n"
+            f"!\n! ERA5 Wind Speed Profile\n"
         )
-        for z, spd in zip(altitudes, speeds):
+        for z, spd in zip(altitudes_sd, speeds):
             f.write(f"&RAMP ID='spd', Z={z:.2f}, F={spd:.2f}/\n")
+
+        f.write("!\n! ERA5 Wind Direction Profile\n")
+        for z, d in zip(altitudes_sd, directions):
+            f.write(f"&RAMP ID='dir', Z={z:.2f}, F={d:.2f}/\n")
 
         f.write("!\n! ERA5 Temperature Ratios  (T(z) / T_2m)\n")
         for z, tr in zip(altitudes, t_ratio):
-            f.write(f"&RAMP ID='T profile', Z={z:.2f}, F={tr:.2f}/\n")
+            f.write(f"&RAMP ID='tmp_profile', Z={z:.2f}, F={tr:.2f}/\n")
 
     print(f"  ✓ {ramp_path}")
     ds_pl.close()
     ds_sl.close()
-    return ramp_path
 
+    return {
+        "ramp_txt"    : ramp_path,
+        "t2m"         : t2m,
+        "skin_temp"   : skin_temp,
+        "surface_pres": surf_pres,
+    }
 
 # ---------------------------------------------------------------------------
 # Public API  (use this when importing as a module)
 # ---------------------------------------------------------------------------
 
-def run(lat, lon, date, hour, out_dir="."):
+def run(lat, lon, date, hour, z_min=0.0):
     """
     Download ERA5 data and produce output files.
 
@@ -261,7 +295,6 @@ def run(lat, lon, date, hour, out_dir="."):
     lon     : float  — longitude in decimal degrees
     date    : str    — "YYYY-MM-DD"
     hour    : int    — UTC hour (0–23)
-    out_dir : str    — directory where files are written (created if absent)
 
     Returns
     -------
@@ -270,24 +303,19 @@ def run(lat, lon, date, hour, out_dir="."):
         "netcdf_pressure" – path to pressure-level NetCDF
         "ramp_txt"        – path to FDS RAMP text file
     """
-    os.makedirs(out_dir, exist_ok=True)
     p = _build_params(lat, lon, date, hour)
     c = cdsapi.Client()
 
-    sl_nc   = _download_single_levels(c, p, out_dir)
-    pl_nc   = _download_pressure_levels(c, p, out_dir)
-    ramp    = _write_fds_ramp(pl_nc, sl_nc, p, out_dir)
+    sl_nc   = _download_single_levels(c, p, ".")
+    pl_nc   = _download_pressure_levels(c, p, ".")
+    result  = _write_fds_ramp(pl_nc, sl_nc, p, ".", z_min=z_min)
 
     print("\nDone.")
     print(f"  Single-level NetCDF  : {sl_nc}")
     print(f"  Pressure-level NetCDF: {pl_nc}")
-    print(f"  FDS RAMP text        : {ramp}\n")
+    print(f"  FDS RAMP text        : {result['ramp_txt']}\n")
 
-    return {
-        "netcdf_single"   : sl_nc,
-        "netcdf_pressure" : pl_nc,
-        "ramp_txt"        : ramp,
-    }
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -300,5 +328,4 @@ if __name__ == "__main__":
         lon     = LON,
         date    = DATE,
         hour    = HOUR,
-        out_dir = OUT_DIR,
     )

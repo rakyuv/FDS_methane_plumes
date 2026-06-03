@@ -183,4 +183,4 @@ The `&WIND` namelist references all three ramps and sets `SPEED` and
 
 ## Acknowledgements
 
-The core logic and algorithms of this repository were designed by the author. Generative AI tools (Gemini and Claude) were utilized to assist with Pythonic code optimization, formatting, and documentation.
+The core logic and algorithms of this repository were designed by the author. Generative AI tools (Gemini and Claude) were utilised to assist with Pythonic code optimization, formatting, and documentation.

@@ -143,16 +143,16 @@ build_fds.py
 ### Section order in `inputfile.fds`
 
 1. `&HEAD` — simulation identity
-2. `&TIME` — start date/time and duration
-3. `&MISC` — TMPA (T_2m), P_INF (surface pressure), wind mode flags
-4. `&GEOM` — geolocation
-5. `&SURF` — ground surface with TMP_FRONT (skin temperature) and soil properties
-6. `&WIND` + `&RAMP` — ERA5 wind speed, direction and temperature profiles
-7. `&VENT` — boundary conditions on all six domain faces
-8. `&SLCF` — slice file outputs
-9. `&OBST` — terrain obstructions
-10. `&DUMP` — output controls
-11. `&MESH` — all mesh definitions
+2. `&MESH` — all mesh definitions
+3. `&TIME` — start date/time and duration
+4. `&MISC` — TMPA (T_2m), P_INF (surface pressure), wind mode flags
+5. `&GEOM` — geolocation
+6. `&SURF` — ground surface with TMP_FRONT (skin temperature) and soil properties
+7. `&WIND` + `&RAMP` — ERA5 wind speed, direction and temperature profiles
+8. `&VENT` — boundary conditions on all six domain faces
+9. `&SLCF` — slice file outputs
+10. `&OBST` — terrain obstructions
+11. `&DUMP` — output controls
 12. `&TAIL`
 
 ---

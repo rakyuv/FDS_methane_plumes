@@ -256,7 +256,6 @@ def _write_fds_ramp(pl_nc, sl_nc, p, out_dir, z_min):
             f"RAMP_SPEED_Z='spd', "
             f"RAMP_DIRECTION_Z='dir', "
             f"RAMP_TMP0_Z='tmp_profile', "
-            f"DIRECTION={dir_10m:.1f}/\n"
             f"!\n! ERA5 Wind Speed Profile\n"
         )
         for z, spd in zip(altitudes_sd, speeds):

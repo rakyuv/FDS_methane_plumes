@@ -40,8 +40,8 @@ MPI                = 1      # meshes per MPI process
 
 # Terrain Topography
 TERRAIN_FILE = "terrain.txt"
-LOCAL_TIF    = "high_resolution_terrain.tif"   # set to a file path string to use a local high-res .tif,
-                      # e.g. LOCAL_TIF = "my_terrain.tif"
+LOCAL_TIF    = None   # or LOCAL_TIF = "/absolute/path/to/high_resolution_terrain.tif", if any high resolution terrain information available
+                      
 # Gases: Mass Fractions (if any) and mass
 PURE_METHANE       = True
 

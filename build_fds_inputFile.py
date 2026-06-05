@@ -211,7 +211,6 @@ def section_ground_surf() -> str:
         ! ------------------------------------------------------------
         &SURF ID={GROUND_SURF},
               ROUGHNESS=0.978,
-              MATL_ID='SOIL',
               COLOR='BROWN',
               TMP_FRONT={SKIN_TEMP:.2f},
               THICKNESS=0.1 /

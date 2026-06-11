@@ -1,7 +1,18 @@
 [![DOI](https://zenodo.org/badge/1106056771.svg)](https://doi.org/10.5281/zenodo.20529870)
+[![Paper](https://img.shields.io/badge/Journal-ES%26T-orange)](https://doi.org/10.1021/acs.est.5c15941)
+[![Preprint](https://img.shields.io/badge/Preprint-ChemRxiv-0b2c56)](https://doi.org/10.26434/chemrxiv.15002286/v1)
+
+## 📄 Publications & Citation
+
+If you use this simulation workflow or the generated input files in your research, please cite our accompanying work:
+
+> 📑 **[Read the Official Published Paper (ES&T)](https://doi.org/10.1021/acs.est.5c15941)**
+> 📝 **[Read the Preprint (ChemrXiv)](https://doi.org/10.26434/chemrxiv.15002286/v1)**
 # FDS: CH₄ simulations
 
 This repository contains everything needed to simulate a CH₄ plume using [Fire Dynamics Simulator (FDS)](https://pages.nist.gov/fds-smv/). The workflow is modular: each preprocessing step lives in its own script, all feeding into a single main code called build_fds_inputFile.py that generates the FDS input file from a shared parameter file.
+
+
 
 # build_fds_inputFile.py
 
